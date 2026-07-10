@@ -1,0 +1,6 @@
+# Phase 1 — Baseline Engine + APC
+# Pin versions so Automatic Prefix Caching behaviour stays reproducible.
+# Do not bump mid-experiment without recording a new baseline run.
+
+vllm==0.24.0
+openai>=1.40.0,<2.0.0
