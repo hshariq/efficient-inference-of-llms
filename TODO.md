@@ -18,7 +18,8 @@ Things **you** still need to do outside of generated code. Check items off as yo
   ```
   - [ ] If install still fails: check `python --version` and that CUDA modules are loaded.
   - [ ] Optional later: after a newer Python + pip, re-check `pip index versions vllm` and bump the pin deliberately.
-  - [ ] Confirm the install on aire cluster: python -c "import vllm; print(vllm.__version__)"
+  - [ ] Confirm the install on aire cluster: python -c "from importlib.metadata import version; print(version('vllm'))", should get 0.24.0
+
 - [ ] Accept the Meta Llama 3 licence on Hugging Face and create an access token.
 - [ ] Export `HF_TOKEN` in the job environment (or set it in `~/.bashrc` / Slurm env — do **not** commit the token).
 - [ ] Fill `# TODO`s in `src/engine/run_vllm.sh`:
