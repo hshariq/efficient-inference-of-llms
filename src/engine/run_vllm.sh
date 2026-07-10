@@ -7,10 +7,12 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --gres=gpu:L40S:1
-# TODO: Confirm the Aire partition / QoS name for L40S nodes and set it here.
+#SBATCH --gres=gpu:l40s:1
+# Partition confirmed via `sinfo` on Aire: `gpu` (nodes gpu001–gpu028).
+# GRES confirmed on gpu020: `Gres=gpu:l40s:3` (use lowercase `l40s`, not `L40S`).
 #SBATCH --partition=gpu
-# #SBATCH --qos=TODO_QOS
+# QoS: not shown as required by `sinfo`; leave unset unless Aire docs say otherwise.
+# #SBATCH --qos=
 
 # =============================================================================
 # Optimizer Box — Phase 1: Baseline Engine + APC (vLLM OpenAI server)
@@ -21,10 +23,14 @@
 #   compute node (the same Slurm job), not on a login node.
 #
 #   Typical workflows:
-#     A) Interactive:  srun --pty bash   → start this script / server, then
-#        in another shell on the same allocation run test_baseline.py
-#     B) Batch: start the server in the background below, wait until healthy,
-#        then run:  python src/engine/test_baseline.py
+#     A) Interactive (what worked on Aire):
+#          srun -t 01:00:00 -p gpu --gres=gpu:1 --pty /bin/bash
+#        Then on the allocated node (e.g. gpu020): module load, activate venv,
+#        start the server, and in another shell on the SAME allocation run
+#        test_baseline.py. Note: interactive used generic --gres=gpu:1;
+#        this batch script pins --gres=gpu:l40s:1 for reproducible L40S nodes.
+#     B) Batch: sbatch this script; once the server is up, run the test from
+#        within the same job / on the same node (localhost only).
 # =============================================================================
 
 set -euo pipefail
@@ -32,18 +38,17 @@ set -euo pipefail
 mkdir -p logs
 
 # -----------------------------------------------------------------------------
-# Cluster environment (Aire-specific — fill these in before first real run)
+# Cluster environment (Aire-specific)
 # -----------------------------------------------------------------------------
-# TODO: Load the CUDA / compiler modules required on Aire, e.g.:
-#   module purge
-#   module load CUDA/12.4.0
-#   module load GCCcore/13.2.0
-#   module load Python/3.11.5
+# Confirmed working interactive session on gpu020 (Jul 2026): only python/3.13.0
+# was loaded. CUDA toolkit module was not required for vLLM 0.24.0 wheels;
+# the node driver reports CUDA 12.6 via nvidia-smi. If a future install needs
+# nvcc / toolkit headers, add e.g. `module load CUDA/12.x` here.
+module purge
+module load python/3.13.0
 
-# TODO: Activate the project virtualenv that has the pinned deps from
-#       requirements.txt installed, e.g.:
-#   source /path/to/optimizer-box/.venv/bin/activate
-#   # or: source "$HOME/venvs/optimizer-box/bin/activate"
+# Project venv (pinned deps from requirements.txt)
+source /users/bgxj0542/efficient-inference-of-llms/.venv/bin/activate
 
 # Pin note: install with  pip install -r requirements.txt
 # Current baseline pin: vllm==0.24.0  (see requirements.txt). Do not upgrade

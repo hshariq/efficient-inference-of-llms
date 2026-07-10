@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments (keep on Aire only — never commit)
+.venv/
+venv/
+env/
+thesis_env/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+HF_TOKEN
+hf_token*
+
+# Hugging Face / model caches
+.cache/
+huggingface/
+*.bin
+*.safetensors
+*.gguf
+*.pt
+*.pth
+*.onnx
+
+# vLLM / runtime
+logs/
+*.out
+*.err
+core.*
+
+# Jupyter / notebooks checkpoints
+.ipynb_checkpoints/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local scratch / data dumps
+data/raw/
+data/cache/
+tmp/
+temp/
