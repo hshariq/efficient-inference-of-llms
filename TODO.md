@@ -10,10 +10,14 @@ Things **you** still need to do outside of generated code. Check items off as yo
 
 - [ ] Create a Python venv on Aire and install pinned deps:
   ```bash
+  # Prefer a modern Python module on Aire (vLLM wants >=3.10), then:
   python -m venv .venv
   source .venv/bin/activate
-  pip install -r requirements.txt
+  python -m pip install --upgrade pip
+  pip install -r requirements.txt   # currently pinned to vllm==0.11.0
   ```
+  - [ ] If install still fails: check `python --version` and that CUDA modules are loaded.
+  - [ ] Optional later: after a newer Python + pip, re-check `pip index versions vllm` and bump the pin deliberately.
 - [ ] Accept the Meta Llama 3 licence on Hugging Face and create an access token.
 - [ ] Export `HF_TOKEN` in the job environment (or set it in `~/.bashrc` / Slurm env — do **not** commit the token).
 - [ ] Fill `# TODO`s in `src/engine/run_vllm.sh`:
@@ -29,7 +33,7 @@ Things **you** still need to do outside of generated code. Check items off as yo
 - [ ] Wait until the OpenAI server is listening on port 8000.
 - [ ] Run `python src/engine/test_baseline.py` **on the same node** (not the login node).
 - [ ] Confirm printed TTFT + total latency look sane and a reply is returned.
-- [ ] Save the job `.out` / `.err` logs and note the vLLM version (`0.24.0`) for the dissertation methods section.
+- [ ] Save the job `.out` / `.err` logs and note the vLLM version (`0.11.0`) for the dissertation methods section.
 
 ### Repo hygiene (when you’re ready)
 
