@@ -20,8 +20,9 @@ Things **you** still need to do outside of generated code. Check items off as yo
   - [ ] Optional later: after a newer Python + pip, re-check `pip index versions vllm` and bump the pin deliberately.
   - [ ] Confirm the install on aire cluster: python -c "from importlib.metadata import version; print(version('vllm'))", should get 0.24.0
 
-- [ ] Accept the Meta Llama 3 licence on Hugging Face and create an access token.
+- [x] Accept the Meta Llama licence on Hugging Face — **granted** for `meta-llama/Llama-3.1-8B-Instruct`.
 - [ ] Export `HF_TOKEN` in the job environment (or set it in `~/.bashrc` / Slurm env — do **not** commit the token).
+  Baseline model is now **`meta-llama/Llama-3.1-8B-Instruct`** (scripts updated).
 
   **How (HF licence + token) — you are not prompted during `pip install`:**
   The Llama 3 gate only hits when vLLM first **downloads the model weights**, not when installing packages.

@@ -13,7 +13,7 @@ import time
 from openai import OpenAI
 
 BASE_URL = "http://localhost:8000/v1"
-MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"
+MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 TEST_PROMPT = "Say hello in one short sentence."
 
 

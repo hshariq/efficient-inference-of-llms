@@ -55,21 +55,22 @@ source /users/bgxj0542/efficient-inference-of-llms/.venv/bin/activate
 # mid-experiment — APC / scheduler behaviour can change across versions.
 
 # -----------------------------------------------------------------------------
-# Hugging Face auth (Llama-3-8B-Instruct is gated)
+# Hugging Face auth (Llama-3.1-8B-Instruct is gated — access granted Jul 2026)
 # -----------------------------------------------------------------------------
-# TODO: Export your Hugging Face token (accepted Llama 3 licence on the Hub).
+# Export your Hugging Face token (same account that was approved on the Hub).
 # Prefer injecting via Slurm secrets / env rather than hard-coding:
 #   export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 # Or:  export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
 if [[ -z "${HF_TOKEN:-}" && -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
   echo "WARNING: HF_TOKEN / HUGGING_FACE_HUB_TOKEN is not set."
-  echo "         Gated model download for Meta-Llama-3-8B-Instruct will fail."
+  echo "         Gated model download for Llama-3.1-8B-Instruct will fail."
 fi
 
 # Optional: keep HF cache on shared scratch rather than $HOME
-# TODO: export HF_HOME="/path/to/scratch/hf_cache"
+# Skipped for now — home quota (~65GB) has enough room for one 8B model.
+# # export HF_HOME="/path/to/scratch/hf_cache"
 
-MODEL="meta-llama/Meta-Llama-3-8B-Instruct"
+MODEL="meta-llama/Llama-3.1-8B-Instruct"
 PORT=8000
 HOST="0.0.0.0"
 
