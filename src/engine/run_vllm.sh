@@ -18,19 +18,23 @@
 # Optimizer Box — Phase 1: Baseline Engine + APC (vLLM OpenAI server)
 # University of Leeds Aire HPC — NVIDIA L40S
 #
-# IMPORTANT — same-node testing:
-#   test_baseline.py talks to http://localhost:8000 and MUST run on THIS
-#   compute node (the same Slurm job), not on a login node.
+# WORKING RECIPE (smoke-tested 2026-07-18):
+#   vllm==0.11.0 + transformers==4.57.6 + VLLM_USE_FLASHINFER_SAMPLER=0
+#   model: meta-llama/Llama-3.1-8B-Instruct
+#   flags: --dtype bfloat16 --gpu-memory-utilization 0.90
+#          --max-model-len 8192 --enable-prefix-caching
 #
-#   Typical workflows:
-#     A) Interactive (what worked on Aire):
-#          srun -t 01:00:00 -p gpu --gres=gpu:1 --pty /bin/bash
-#        Then on the allocated node (e.g. gpu020): module load, activate venv,
-#        start the server, and in another shell on the SAME allocation run
-#        test_baseline.py. Note: interactive used generic --gres=gpu:1;
-#        this batch script pins --gres=gpu:l40s:1 for reproducible L40S nodes.
-#     B) Batch: sbatch this script; once the server is up, run the test from
-#        within the same job / on the same node (localhost only).
+# Interactive start (from login node):
+#   srun -t 02:00:00 -p gpu --gres=gpu:1 --mem=64G --cpus-per-task=8 --pty /bin/bash
+#   # CRITICAL: always --mem=64G (default mem=1G → OOM "Killed")
+#   cd ~/efficient-inference-of-llms
+#   export HF_TOKEN=hf_...          # once per shell
+#   bash src/engine/start_on_gpu.sh
+#
+# Second shell for the smoke test (same job):
+#   srun --jobid=$SLURM_JOB_ID --overlap --pty /bin/bash
+#   module load python/3.13.0 && source .venv/bin/activate
+#   python src/engine/test_baseline.py
 # =============================================================================
 
 set -euo pipefail
@@ -40,56 +44,61 @@ mkdir -p logs
 # -----------------------------------------------------------------------------
 # Cluster environment (Aire-specific)
 # -----------------------------------------------------------------------------
-# Confirmed working interactive session on gpu020 (Jul 2026): only python/3.13.0
-# was loaded. CUDA toolkit module was not required for vLLM 0.24.0 wheels;
-# the node driver reports CUDA 12.6 via nvidia-smi. If a future install needs
-# nvcc / toolkit headers, add e.g. `module load CUDA/12.x` here.
 module purge
 module load python/3.13.0
 
-# Project venv (pinned deps from requirements.txt)
+# Project venv (pinned deps from requirements.txt — do not upgrade mid-experiment)
 source /users/bgxj0542/efficient-inference-of-llms/.venv/bin/activate
 
-# Pin note: install with  pip install -r requirements.txt
-# Current baseline pin: vllm==0.24.0  (see requirements.txt). Do not upgrade
-# mid-experiment — APC / scheduler behaviour can change across versions.
+# -----------------------------------------------------------------------------
+# Known-good runtime env (required on Aire — no nvcc / CUDA toolkit on nodes)
+# -----------------------------------------------------------------------------
+export VLLM_USE_FLASHINFER_SAMPLER=0
 
-# -----------------------------------------------------------------------------
-# Hugging Face auth (Llama-3.1-8B-Instruct is gated — access granted Jul 2026)
-# -----------------------------------------------------------------------------
-# Export your Hugging Face token (same account that was approved on the Hub).
-# Prefer injecting via Slurm secrets / env rather than hard-coding:
-#   export HF_TOKEN="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-# Or:  export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
-if [[ -z "${HF_TOKEN:-}" && -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
-  echo "WARNING: HF_TOKEN / HUGGING_FACE_HUB_TOKEN is not set."
-  echo "         Gated model download for Llama-3.1-8B-Instruct will fail."
+# Soft check: interactive jobs without --mem often get 1G and die during load
+if [[ -n "${SLURM_MEM_PER_NODE:-}" ]]; then
+  # SLURM_MEM_PER_NODE is usually MiB
+  if (( SLURM_MEM_PER_NODE < 32000 )); then
+    echo "ERROR: This job has only ${SLURM_MEM_PER_NODE} MiB RAM."
+    echo "       Restart with: srun ... --mem=64G --cpus-per-task=8 ..."
+    exit 1
+  fi
 fi
 
-# Optional: keep HF cache on shared scratch rather than $HOME
-# Skipped for now — home quota (~65GB) has enough room for one 8B model.
-# # export HF_HOME="/path/to/scratch/hf_cache"
+# -----------------------------------------------------------------------------
+# Hugging Face auth (gated Llama-3.1 — token required only for first download)
+# -----------------------------------------------------------------------------
+if [[ -z "${HF_TOKEN:-}" && -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
+  echo "WARNING: HF_TOKEN / HUGGING_FACE_HUB_TOKEN is not set."
+  echo "         First-time download of Llama-3.1-8B-Instruct will fail."
+  echo "         Cached weights under ~/.cache/huggingface do not need the token."
+fi
+if [[ -n "${HF_TOKEN:-}" && -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
+  export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+fi
 
 MODEL="meta-llama/Llama-3.1-8B-Instruct"
 PORT=8000
 HOST="0.0.0.0"
+MAX_MODEL_LEN=8192
 
 echo "=============================================="
 echo " Host:     $(hostname)"
 echo " Model:    ${MODEL}"
 echo " Port:     ${PORT}"
+echo " Max len:  ${MAX_MODEL_LEN}"
 echo " Prefix:   APC enabled (--enable-prefix-caching)"
 echo " Dtype:    bfloat16"
 echo " GPU util: 0.90"
+echo " FlashInfer sampler: OFF (VLLM_USE_FLASHINFER_SAMPLER=0)"
 echo "=============================================="
 
 # Launch OpenAI-compatible vLLM server (baseline + Automatic Prefix Caching).
-# Bind 0.0.0.0 so other processes on this node can reach it; clients on this
-# node should still use http://localhost:8000/v1.
 python -m vllm.entrypoints.openai.api_server \
   --model "${MODEL}" \
   --host "${HOST}" \
   --port "${PORT}" \
   --dtype bfloat16 \
   --gpu-memory-utilization 0.90 \
+  --max-model-len "${MAX_MODEL_LEN}" \
   --enable-prefix-caching

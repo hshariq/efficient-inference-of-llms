@@ -1,6 +1,19 @@
-# Phase 1 — Baseline Engine + APC
-# Pin versions so Automatic Prefix Caching behaviour stays reproducible.
+# Phase 1 — Baseline Engine + APC (Aire HPC)
+# Smoke-tested 2026-07-18: Llama-3.1-8B-Instruct + APC, TTFT ~1.9s
 # Do not bump mid-experiment without recording a new baseline run.
+#
+# Fresh venv on Aire (once):
+#   module load python/3.13.0
+#   python -m venv .venv && source .venv/bin/activate
+#   python -m pip install --upgrade pip
+#   pip install -r requirements.txt
+#
+# Pins that work on Aire (driver CUDA 12.6):
+#   - vllm==0.11.0          (NOT 0.24.x — needs CUDA 13)
+#   - transformers==4.57.6  (NOT 5.x — breaks tokenizer APIs vllm 0.11 needs)
+#   - torch: leave whatever vllm installs; do not force-reinstall a different CUDA build
+#   - runtime: export VLLM_USE_FLASHINFER_SAMPLER=0  (set automatically in run_vllm.sh)
 
-vllm==0.24.0
-openai
+vllm==0.11.0
+transformers==4.57.6
+openai>=1.40.0,<2.0.0

@@ -23,6 +23,8 @@ Things **you** still need to do outside of generated code. Check items off as yo
 - [x] Accept the Meta Llama licence on Hugging Face — **granted** for `meta-llama/Llama-3.1-8B-Instruct`.
 - [ ] Export `HF_TOKEN` in the job environment (or set it in `~/.bashrc` / Slurm env — do **not** commit the token).
   Baseline model is now **`meta-llama/Llama-3.1-8B-Instruct`** (scripts updated).
+  **CUDA note (Aire):** driver is **12.6**. Do **not** use `vllm==0.24.0` (needs CUDA 13). Use `vllm==0.11.0` + torch `cu126` (see `requirements.txt`).
+  Interactive job must use `--mem=64G` (default `mem=1G` OOM-kills vLLM).
 
   **How (HF licence + token) — you are not prompted during `pip install`:**
   The Llama 3 gate only hits when vLLM first **downloads the model weights**, not when installing packages.
@@ -53,16 +55,25 @@ Things **you** still need to do outside of generated code. Check items off as yo
 
 **How you get onto a GPU node (confirmed):** login nodes have no GPU. From the login node:
 ```bash
-srun -t 01:00:00 -p gpu --gres=gpu:1 --pty /bin/bash
+srun -t 02:00:00 -p gpu --gres=gpu:1 --mem=64G --cpus-per-task=8 --pty /bin/bash
 ```
-Wait in the queue until you land on a compute node (e.g. `gpu020`). Only then start vLLM / run `test_baseline.py`.  
-(`--gres=gpu:1` = any GPU in the `gpu` partition; batch script uses `--gres=gpu:l40s:1` to pin L40S.)
+**CRITICAL:** always pass `--mem=64G`. Without it Aire may allocate `mem=1G` and the OOM-killer will `Killed` vLLM while loading Llama 8B (seen on job 6685447).  
+Wait in the queue until you land on a compute node (e.g. `gpu001`). Only then start vLLM / run `test_baseline.py`.
 
-- [ ] Submit / start the server on a compute node (`sbatch` or interactive `srun`).
-- [ ] Wait until the OpenAI server is listening on port 8000.
-- [ ] Run `python src/engine/test_baseline.py` **on the same node** (not the login node).
-- [ ] Confirm printed TTFT + total latency look sane and a reply is returned.
-- [ ] Save the job `.out` / `.err` logs and note the vLLM version (`0.24.0`) for the dissertation methods section.
+**Working stack on Aire (Jul 2026 smoke test — SUCCESS):**
+- `vllm==0.11.0`, `transformers==4.57.6`, torch from vllm (`+cu128` ok on this driver for this run)
+- `export VLLM_USE_FLASHINFER_SAMPLER=0` (no nvcc on node)
+- `--max-model-len 8192 --enable-prefix-caching --dtype bfloat16`
+- Model: `meta-llama/Llama-3.1-8B-Instruct`
+- Smoke test result: reply `Hello.` — TTFT ~1.92s, total ~1.96s
+
+- [x] Submit / start the server on a compute node (`sbatch` or interactive `srun`).
+- [x] Wait until the OpenAI server is listening on port 8000.
+- [x] Run `python src/engine/test_baseline.py` **on the same node** (not the login node).
+- [x] Confirm printed TTFT + total latency look sane and a reply is returned.
+- [ ] Save the job `.out` / `.err` logs and note the vLLM version (`0.11.0`) + transformers `4.57.6` for the dissertation methods section.
+- [ ] Commit/push working pins (`requirements.txt`, `run_vllm.sh`, `start_on_gpu.sh`, `AIRE_START.md`) so Aire can `git pull` and restart cleanly.
+- [ ] On Aire after pull: `chmod +x src/engine/start_on_gpu.sh src/engine/run_vllm.sh`
 
 ### Repo hygiene (when you’re ready)
 
