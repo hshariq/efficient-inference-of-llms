@@ -71,8 +71,8 @@ def bench_hf() -> dict:
     model = AutoModelForCausalLM.from_pretrained(
         MODEL,
         torch_dtype=torch.bfloat16,
-        device_map="cuda",
     )
+    model.to("cuda")
     model.eval()
     load_s = time.perf_counter() - t_load0
     print(f"[HF] Model load time: {load_s:.3f} s")
