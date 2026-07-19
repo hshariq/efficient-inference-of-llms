@@ -7,8 +7,9 @@ Backends:
   hf    — Hugging Face transformers generate on this GPU (no vLLM)
 
 Examples (on the SAME GPU node as the job):
-  python src/engine/test_baseline.py              # vLLM only (server must be up)
-  python src/engine/test_baseline.py --backend hf # HF only (stop vLLM first — VRAM)
+  python src/engine/test_baseline.py --backend vllm
+  python src/engine/test_baseline.py --backend vllm --base-url http://localhost:9000/v1  # via proxy
+  python src/engine/test_baseline.py --backend hf
   python src/engine/test_baseline.py --backend both
 """
 
@@ -19,14 +20,14 @@ import time
 
 MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 TEST_PROMPT = "Say hello in one short sentence."
-BASE_URL = "http://localhost:8000/v1"
+DEFAULT_VLLM_URL = "http://localhost:8000/v1"
 
 
-def bench_vllm() -> dict:
+def bench_vllm(base_url: str) -> dict:
     from openai import OpenAI
 
-    client = OpenAI(base_url=BASE_URL, api_key="EMPTY")
-    print(f"[vLLM] Connecting to {BASE_URL}")
+    client = OpenAI(base_url=base_url, api_key="EMPTY")
+    print(f"[vLLM] Connecting to {base_url}")
     print(f"[vLLM] Model: {MODEL}")
     print(f"[vLLM] Prompt: {TEST_PROMPT!r}")
 
@@ -160,17 +161,23 @@ def main() -> None:
         default="both",
         help="Which backend(s) to time (default: both)",
     )
+    parser.add_argument(
+        "--base-url",
+        default=DEFAULT_VLLM_URL,
+        help="OpenAI-compatible base URL (vLLM :8000 or proxy :9000)",
+    )
     args = parser.parse_args()
 
     results: list[dict] = []
 
     if args.backend in ("vllm", "both"):
         try:
-            results.append(bench_vllm())
+            results.append(bench_vllm(args.base_url))
             print_result(results[-1])
         except Exception as exc:  # noqa: BLE001 — show friendly error on cluster
             print(f"[vLLM] FAILED: {exc}")
             print("[vLLM] Is the server up? bash src/engine/start_on_gpu.sh")
+            print("[vLLM] For proxy path: bash src/proxy/start_proxy.sh then --base-url http://localhost:9000/v1")
 
     if args.backend in ("hf", "both"):
         if args.backend == "both":

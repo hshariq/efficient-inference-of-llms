@@ -83,9 +83,11 @@ Wait in the queue until you land on a compute node (e.g. `gpu001`). Only then st
 
 ---
 
-## Later phases (not started — do not implement yet)
+## Later phases
 
-- [ ] Phase 2: FastAPI proxy skeleton in front of vLLM
+- [x] **Phase 2 code scaffold** (pass-through proxy) — see `PHASE2_PROXY.md` / `src/proxy/`
+  - [ ] Aire: `pip install fastapi uvicorn httpx` (or `pip install -r requirements.txt`)
+  - [ ] Aire smoke via `:9000` + `bench_overhead.py --n 30`
 - [ ] Phase 3: Trimmer preprocessing
 - [ ] Phase 4: Semantic sub-batching + canonical prefixes
 - [ ] Phase 5: TTL / starvation escape hatch

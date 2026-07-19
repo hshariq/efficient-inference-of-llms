@@ -31,9 +31,23 @@ python src/engine/test_baseline.py --backend vllm
 python src/engine/test_baseline.py --backend hf
 ```
 
-## Do not
+## Phase 2 — proxy (pass-through)
 
-- Start without `--mem=64G` (you get 1G → process `Killed`)
-- Use `vllm==0.24` or `transformers` 5.x on Aire
-- Force-reinstall a different PyTorch CUDA build after `pip install -r requirements.txt`
-- Run the test from a login node (`localhost:8000` won’t work)
+With vLLM already running on `:8000` (another shell on the same job):
+
+```bash
+# install once if needed
+pip install 'fastapi>=0.115' 'uvicorn[standard]>=0.30' 'httpx>=0.27'
+
+bash src/proxy/start_proxy.sh
+```
+
+Smoke via proxy:
+```bash
+python src/engine/test_baseline.py --backend vllm --base-url http://localhost:9000/v1
+```
+
+Overhead (N runs, mean ± std):
+```bash
+python src/proxy/bench_overhead.py --n 30 --warmup 3
+```
