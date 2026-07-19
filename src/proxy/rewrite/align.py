@@ -77,17 +77,27 @@ def align_system_content(system_content: str) -> str:
     """
     Append inert PAD_TRAILER until the rendered shared prefix length (across two
     distinct dummy user docs) is a multiple of BLOCK_SIZE.
+
+    Llama chat templates strip message content, so whitespace-only pads are a no-op.
     """
     # Two fixed different docs so LCP stops before user divergence.
     user_a = "DOCUMENT_A_PLACEHOLDER_FOR_ALIGNMENT_ONLY"
     user_b = "DOCUMENT_B_PLACEHOLDER_FOR_ALIGNMENT_ONLY"
 
     content = system_content
+    prev_lcp = -1
     # Bound iterations so a tokenizer quirk cannot loop forever.
-    for _ in range(BLOCK_SIZE * 4):
+    for _ in range(BLOCK_SIZE * 8):
         lcp = shared_prefix_token_len(content, user_a, user_b)
         if lcp > 0 and lcp % BLOCK_SIZE == 0:
             return content
+        if lcp == prev_lcp:
+            raise RuntimeError(
+                f"Pad trailer {PAD_TRAILER!r} did not increase rendered LCP "
+                f"(stuck at {lcp}). Chat templates strip whitespace; use a "
+                f"non-whitespace PAD_TRAILER."
+            )
+        prev_lcp = lcp
         content = content + PAD_TRAILER
     raise RuntimeError(
         f"Failed to block-align system content to {BLOCK_SIZE} tokens "

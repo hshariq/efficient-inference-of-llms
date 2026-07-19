@@ -98,8 +98,9 @@ context the model may attend to and generate against. Prefer, in order:
 1. **Pre-craft** each canonical prefix so the *rendered* shared span naturally lands on
    a block multiple (best).
 2. If residual pad is needed, use a **fixed, semantically inert** trailer documented in
-   `catalogue.py` (e.g. consistent trailing newlines / a single agreed inert phrase) —
-   never arbitrary or random placeholder tokens.
+   `catalogue.py`. It must be **non-whitespace** (Llama chat templates `.strip()` message
+   content, so trailing newlines never reach the hashed sequence) — never arbitrary or
+   random placeholder tokens. We use middle-dot `·` (`PAD_TRAILER`).
 
 Document the chosen pad policy in `catalogue.py`’s docstring so future changes don’t
 quietly degrade answer quality.
