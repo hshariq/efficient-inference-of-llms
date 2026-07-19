@@ -51,3 +51,8 @@ Overhead (N runs, mean ± std):
 ```bash
 python src/proxy/bench_overhead.py --n 30 --warmup 3
 ```
+
+Parallel smoke (not formal eval — just “does it survive?”):
+```bash
+python src/proxy/smoke_parallel.py --n 10
+```
