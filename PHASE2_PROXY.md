@@ -23,9 +23,9 @@ separated from optimisation gains.
 
 ## Out of scope (explicit — not Phase 2)
 
-- Trimmer preprocessing
-- Semantic sub-batching / canonical prefixes
-- TTL / starvation escape
+- Trimmer preprocessing (**also skipped for the full dissertation build — future work**)
+- Semantic sub-batching / canonical prefixes ← Phase 4
+- TTL / starvation escape ← Phase 5
 - Feature-aware routing / metadata eviction
 
 ---

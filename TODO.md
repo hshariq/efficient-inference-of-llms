@@ -86,12 +86,19 @@ Wait in the queue until you land on a compute node (e.g. `gpu001`). Only then st
 ## Later phases
 
 - [x] **Phase 2 code scaffold** (pass-through proxy) — see `PHASE2_PROXY.md` / `src/proxy/`
-  - [ ] Aire: `pip install fastapi uvicorn httpx` (or `pip install -r requirements.txt`)
-  - [ ] Aire smoke via `:9000` + `bench_overhead.py --n 30`
-- [ ] Phase 3: Trimmer preprocessing
-- [ ] Phase 4: Semantic sub-batching + canonical prefixes
+  - [x] Aire smoke via `:9000` + `bench_overhead.py --n 30` (~+1 ms overhead)
+  - [ ] Optional: `smoke_parallel.py --n 10`; commit/push Phase 2 + parallel smoke
+- [~] **Phase 3: Trimmer preprocessing — SKIPPED for this dissertation** (cite as **future work**)
+- [ ] **Phase 4: Semantic sub-batching + canonical prefixes** — see `PHASE4_SEMANTIC.md`
+  - [x] 4a–4c code: schema tagger, catalogue, chat-template block align, bypass, proxy headers
+  - [x] Unit tests in `tests/test_rewrite_align.py` (run on Aire with HF cache / `HF_TOKEN`)
+  - [ ] Aire: `git pull`, restart proxy (`OPTIMIZER_REWRITE_MODE=on`), confirm `X-Optimizer-Rewrite: rewrite`
+  - [ ] Aire 4e: `python src/proxy/smoke_rewrite_apc.py` (shared-instruction / different-data TTFT)
+  - Must include: **block alignment** (16-token), shared-instruction/**different-data** tests, no Trimmer creep
 - [ ] Phase 5: TTL / starvation escape hatch
 - [ ] Phase 6: Evaluation harness (vanilla / APC / GPTCache / Optimizer Box)
+
+**Scope note:** Architecture still *includes* Trimmer conceptually (`project-context.md` / diagram), but we are **not implementing** it in the submitted system. Ablation “(b) Trimmer alone” is dropped; eval focuses on proxy + semantic sub-batching (+ TTL) vs baselines.
 
 ---
 

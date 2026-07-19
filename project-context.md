@@ -81,6 +81,15 @@ on KV Caching/Prefix Management (PagedAttention) as the innermost, vLLM-owned fo
 
 ## 4. Explicit design decisions (already made — don't relitigate)
 
+### Implementation scope (dissertation build)
+
+- **"Trimmer" Preprocessing Engine** is part of the *architecture* (diagram / lit positioning) but is
+  **deferred to future work** for the coded system. We do **not** implement noise-token stripping
+  in the submitted Optimizer Box. Rationale: keep scope on the proxy hop + semantic
+  sub-batching / canonical prefixes (+ TTL); Trimmer is complementary and can stack later.
+- Ablation study in §7 originally planned (a) semantic alone (b) Trimmer alone (c) combination —
+  **drop (b)** and Trimmer-combination cells; report semantic (± TTL) vs baselines instead.
+
 **We ARE building:**
 - A stateless-ish proxy in front of vLLM's OpenAI-compatible API (standard JSON in/out,
   zero client-side changes required).

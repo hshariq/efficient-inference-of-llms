@@ -1,12 +1,14 @@
 """
-Phase 2 pass-through FastAPI proxy in front of vLLM.
+Optimizer Box proxy in front of vLLM.
 
-Clients → this app (:9000) → vLLM (:8000). No Trimmer / routing / TTL yet.
-Uses a long-lived httpx.AsyncClient and streams SSE without response buffering.
+Phase 2: pass-through HTTP + SSE.
+Phase 4: optional schema rewrite onto block-aligned canonical prefixes
+         (OPTIMIZER_REWRITE_MODE=on|tag_only|off).
 """
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
@@ -15,8 +17,12 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.proxy.config import vllm_base_url
+from src.proxy.rewrite import rewrite_request
+from src.proxy.rewrite.align import warm_alignment_cache
 
-# Headers that must not be blindly forwarded client → upstream / upstream → client
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("optimizer_box.proxy")
+
 _HOP_BY_HOP = {
     "connection",
     "keep-alive",
@@ -34,7 +40,6 @@ _HOP_BY_HOP = {
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     base = vllm_base_url()
-    # Persistent client — do not create per request (would inflate proxy overhead).
     app.state.http = httpx.AsyncClient(
         base_url=base,
         timeout=httpx.Timeout(600.0, connect=30.0),
@@ -43,6 +48,12 @@ async def lifespan(app: FastAPI):
     app.state.vllm_base_url = base
     print(f"[proxy] upstream VLLM_BASE_URL={base}")
     try:
+        warm_alignment_cache()
+        print("[proxy] rewrite alignment cache warmed")
+    except Exception as exc:  # noqa: BLE001 — proxy still serves; rewrites may bypass
+        logger.warning("alignment warm-up failed (rewrites may bypass): %s", exc)
+        print(f"[proxy] WARNING: alignment warm-up failed: {exc}")
+    try:
         yield
     finally:
         await app.state.http.aclose()
@@ -50,8 +61,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Optimizer Box Proxy",
-    version="0.2.0",
-    description="Phase 2 pass-through only — no optimisation logic",
+    version="0.4.0",
+    description="Pass-through + Phase-4 canonical prefix rewrite",
     lifespan=lifespan,
 )
 
@@ -62,7 +73,6 @@ def _filter_request_headers(request: Request) -> dict[str, str]:
         if key.lower() in _HOP_BY_HOP:
             continue
         if key.lower() == "authorization":
-            # Upstream vLLM ignores auth; keep a dummy if client sent none.
             continue
         out[key] = value
     return out
@@ -97,27 +107,38 @@ async def list_models() -> Response:
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request) -> Response:
-    """Pass-through chat completions (stream or JSON)."""
     body = await request.json()
+    body, decision = rewrite_request(body)
+    # Echo decision in a response header for debugging (SSE-safe).
+    debug_headers = {
+        "X-Optimizer-Rewrite": decision.action,
+        "X-Optimizer-Reason": decision.reason[:128],
+    }
+    if decision.catalogue_task:
+        debug_headers["X-Optimizer-Task"] = decision.catalogue_task
+
     stream = bool(body.get("stream", False))
     client: httpx.AsyncClient = app.state.http
     headers = _filter_request_headers(request)
 
     if stream:
-        return await _stream_chat(client, body, headers)
-    return await _json_chat(client, body, headers)
+        return await _stream_chat(client, body, headers, debug_headers)
+    return await _json_chat(client, body, headers, debug_headers)
 
 
 async def _json_chat(
     client: httpx.AsyncClient,
     body: dict[str, Any],
     headers: dict[str, str],
+    extra_headers: dict[str, str],
 ) -> Response:
     r = await client.post("/chat/completions", json=body, headers=headers)
+    out_headers = dict(extra_headers)
     return Response(
         content=r.content,
         status_code=r.status_code,
         media_type=r.headers.get("content-type", "application/json"),
+        headers=out_headers,
     )
 
 
@@ -125,12 +146,8 @@ async def _stream_chat(
     client: httpx.AsyncClient,
     body: dict[str, Any],
     headers: dict[str, str],
+    extra_headers: dict[str, str],
 ) -> StreamingResponse:
-    """
-    Forward upstream SSE bytes as they arrive.
-    media_type=text/event-stream + no gzip middleware → TTFT stays meaningful.
-    """
-
     async def byte_stream() -> AsyncIterator[bytes]:
         async with client.stream(
             "POST",
@@ -139,7 +156,6 @@ async def _stream_chat(
             headers=headers,
         ) as upstream:
             if upstream.status_code >= 400:
-                # Drain error body so the client still sees something useful.
                 err = await upstream.aread()
                 yield err
                 return
@@ -153,8 +169,8 @@ async def _stream_chat(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            # Discourage reverse-proxy buffering if one is ever added in front.
             "X-Accel-Buffering": "no",
+            **extra_headers,
         },
     )
 
@@ -164,8 +180,8 @@ async def root() -> JSONResponse:
     return JSONResponse(
         {
             "service": "optimizer-box-proxy",
-            "phase": 2,
-            "mode": "pass-through",
+            "phase": 4,
+            "mode": "canonical-prefix-rewrite",
             "upstream": app.state.vllm_base_url,
         }
     )

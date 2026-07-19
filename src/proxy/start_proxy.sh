@@ -24,11 +24,14 @@ source "$ROOT/.venv/bin/activate"
 export VLLM_BASE_URL="${VLLM_BASE_URL:-http://localhost:8000/v1}"
 export PROXY_HOST="${PROXY_HOST:-0.0.0.0}"
 export PROXY_PORT="${PROXY_PORT:-9000}"
+# Phase 4: on | tag_only | off
+export OPTIMIZER_REWRITE_MODE="${OPTIMIZER_REWRITE_MODE:-on}"
 
 echo "=============================================="
-echo " Optimizer Box proxy (Phase 2 pass-through)"
+echo " Optimizer Box proxy (Phase 4 rewrite enabled)"
 echo " Upstream: ${VLLM_BASE_URL}"
 echo " Listen:   ${PROXY_HOST}:${PROXY_PORT}"
+echo " Rewrite:  ${OPTIMIZER_REWRITE_MODE}"
 echo " Gzip:     disabled (SSE / TTFT integrity)"
 echo "=============================================="
 
