@@ -100,11 +100,13 @@ def align_system_content(system_content: str) -> str:
     Append an inert pad unit until the rendered shared prefix length (across two
     distinct dummy user docs) is a multiple of BLOCK_SIZE.
 
-    Llama chat templates strip message content, so whitespace-only pads are a no-op.
-    Pad unit is chosen empirically so each append increases rendered LCP (BPE-safe).
+    Dummy user strings must share **no** leading tokens (not even \"DOCUMENT_\"),
+    otherwise LCP extends into the user turn and alignment won't match real
+    different-doc traffic (Alpha… vs Beta…).
     """
-    user_a = "DOCUMENT_A_PLACEHOLDER_FOR_ALIGNMENT_ONLY"
-    user_b = "DOCUMENT_B_PLACEHOLDER_FOR_ALIGNMENT_ONLY"
+    # First tokens must differ — do not share a common stem.
+    user_a = "QQQ_ALIGN_PAD_DOC_ONE_aaa"
+    user_b = "ZZZ_ALIGN_PAD_DOC_TWO_zzz"
 
     content = system_content
     lcp = shared_prefix_token_len(content, user_a, user_b)

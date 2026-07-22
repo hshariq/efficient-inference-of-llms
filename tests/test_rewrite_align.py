@@ -58,10 +58,11 @@ def test_catalogue_block_aligned_via_chat_template(task: Task, tokenizer_ready):
     """Pad against rendered chat-template LCP — not raw string encode."""
     proto = CANONICAL_SYSTEM[task]
     aligned = align_system_content(proto)
+    # User strings must not share a token prefix (same rule as align.py dummies).
     lcp = shared_prefix_token_len(
         aligned,
-        "DOCUMENT_A_UNIQUE_BODY_xxx",
-        "DOCUMENT_B_UNIQUE_BODY_yyy",
+        "AAA_UNIQUE_BODY_xxx",
+        "ZZZ_UNIQUE_BODY_yyy",
     )
     assert lcp > 0
     assert lcp % BLOCK_SIZE == 0, f"{task}: LCP={lcp} not multiple of {BLOCK_SIZE}"
