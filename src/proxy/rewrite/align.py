@@ -17,6 +17,10 @@ from src.proxy.rewrite.catalogue import PAD_TRAILER
 BLOCK_SIZE = 16
 MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct"
 
+# Tried in order when PAD_TRAILER does not increase rendered LCP (BPE can absorb
+# some glyphs like middle-dot into a neighbouring token with zero length change).
+_PAD_FALLBACKS = (" #", " |", ";", "x", "0")
+
 
 def light_normalize(text: str) -> str:
     """
@@ -72,36 +76,57 @@ def shared_prefix_token_len(system_content: str, user_a: str, user_b: str) -> in
     return longest_common_prefix_len(ids_a, ids_b)
 
 
+def _survives_strip(content: str, pad: str) -> bool:
+    """Llama chat templates .strip() message content — pad must remain."""
+    return (content + pad).strip() != content.strip()
+
+
+def _pick_pad_unit(content: str, user_a: str, user_b: str, base_lcp: int) -> str:
+    for cand in (PAD_TRAILER, *_PAD_FALLBACKS):
+        if not cand or not _survives_strip(content, cand):
+            continue
+        new_lcp = shared_prefix_token_len(content + cand, user_a, user_b)
+        if new_lcp > base_lcp:
+            return cand
+    raise RuntimeError(
+        f"No pad unit increased rendered LCP (stuck at {base_lcp}). "
+        f"Tried {PAD_TRAILER!r} and {_PAD_FALLBACKS}."
+    )
+
+
 @lru_cache(maxsize=32)
 def align_system_content(system_content: str) -> str:
     """
-    Append inert PAD_TRAILER until the rendered shared prefix length (across two
+    Append an inert pad unit until the rendered shared prefix length (across two
     distinct dummy user docs) is a multiple of BLOCK_SIZE.
 
     Llama chat templates strip message content, so whitespace-only pads are a no-op.
+    Pad unit is chosen empirically so each append increases rendered LCP (BPE-safe).
     """
-    # Two fixed different docs so LCP stops before user divergence.
     user_a = "DOCUMENT_A_PLACEHOLDER_FOR_ALIGNMENT_ONLY"
     user_b = "DOCUMENT_B_PLACEHOLDER_FOR_ALIGNMENT_ONLY"
 
     content = system_content
-    prev_lcp = -1
-    # Bound iterations so a tokenizer quirk cannot loop forever.
+    lcp = shared_prefix_token_len(content, user_a, user_b)
+    if lcp > 0 and lcp % BLOCK_SIZE == 0:
+        return content
+
+    pad_unit = _pick_pad_unit(content, user_a, user_b, lcp)
+    prev_lcp = lcp
     for _ in range(BLOCK_SIZE * 8):
+        content = content + pad_unit
         lcp = shared_prefix_token_len(content, user_a, user_b)
         if lcp > 0 and lcp % BLOCK_SIZE == 0:
             return content
-        if lcp == prev_lcp:
+        if lcp <= prev_lcp:
             raise RuntimeError(
-                f"Pad trailer {PAD_TRAILER!r} did not increase rendered LCP "
-                f"(stuck at {lcp}). Chat templates strip whitespace; use a "
-                f"non-whitespace PAD_TRAILER."
+                f"Pad unit {pad_unit!r} stopped increasing rendered LCP "
+                f"(was {prev_lcp}, now {lcp})."
             )
         prev_lcp = lcp
-        content = content + PAD_TRAILER
     raise RuntimeError(
         f"Failed to block-align system content to {BLOCK_SIZE} tokens "
-        f"(last LCP={shared_prefix_token_len(content, user_a, user_b)})"
+        f"(last LCP={lcp})"
     )
 
 

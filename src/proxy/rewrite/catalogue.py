@@ -6,12 +6,10 @@ Pad policy
 Padding is real model context (not attention-mask padding). Prefer:
   1) Wording crafted so the *chat-template–rendered* shared span lands on a
      block multiple (see align.py).
-  2) If residual pad is required, use only the inert trailer PAD_TRAILER —
-     never arbitrary / random tokens.
-
-Important: Llama-3.1 chat templates call ``.strip()`` on message content, so
-trailing whitespace / newlines never reach the rendered token sequence. PAD_TRAILER
-must therefore be non-whitespace (middle dots) or alignment will stall.
+  2) If residual pad is required, use a fixed inert trailer that *survives*
+     Llama chat-template ``.strip()`` and *increases* rendered token LCP.
+     ``align.py`` tries PAD_TRAILER first, then ASCII fallbacks (`` #``, etc.)
+     because some glyphs (e.g. middle-dot) can be BPE-absorbed with ΔLCP=0.
 
 Serving model id (locked): meta-llama/Llama-3.1-8B-Instruct
 """
@@ -20,9 +18,8 @@ from __future__ import annotations
 
 from src.proxy.rewrite.schema import Task
 
-# Semantically inert residual pad (survives chat-template .strip()).
-# Middle dot U+00B7 — not Python/Jinja whitespace.
-PAD_TRAILER = "·"
+# Preferred residual pad (align.py may fall back if this does not grow LCP).
+PAD_TRAILER = " #"
 
 # Instruction bodies placed in the *system* role so different user documents
 # still share an identical rendered prefix through the system turn.
