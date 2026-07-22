@@ -33,11 +33,15 @@ huggingface/
 *.pth
 *.onnx
 
-# vLLM / runtime
+# vLLM / runtime scratch (do not commit)
 logs/
 *.out
 *.err
 core.*
+
+# Commit experiment artefacts under results/ (not logs/)
+!results/
+!results/**/
 
 # Jupyter / notebooks checkpoints
 .ipynb_checkpoints/

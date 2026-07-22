@@ -255,3 +255,19 @@ Shared request set = Part 2 coverage assets + summarize paraphrases (n=113). Lat
 - Embeddings used only when rules return UNKNOWN or confidence below threshold.
 - Qwen3-Embedding-0.6B VRAM must be read against vLLM `--gpu-memory-utilization 0.90` on L40S; if contention appears, set `OPTIMIZER_EMBED_DEVICE=cpu` for the proxy process.
 - Catalogue still keyed by Task only; Part 2 fields remain metadata.
+
+## Part 4 — Ablation results (2026-07-22 19:06 UTC)
+
+Shared request set = Part 2 coverage assets + summarize paraphrases (n=113). Latencies are **mean ms**, rule vs embed reported separately. VRAM is process `torch.cuda.memory_allocated` after backend load (None = CPU / unavailable).
+
+| Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used rate | VRAM |
+|-----------|-------------|--------------|---------------|-----------------|------|
+| `rules_plus_features` | 20.4% | 26.84 | 0.00 | 0.0% | n/a |
+
+**Notes:** Warm TTFT / Token Saving Ratio need live vLLM+APC (`smoke_rewrite_apc.py` / Phase 6) and are not duplicated here — tagging ablation isolates classifier behaviour only.
+
+### Decisions / caveats from this run
+
+- Embeddings used only when rules return UNKNOWN or confidence below threshold.
+- Qwen3-Embedding-0.6B VRAM must be read against vLLM `--gpu-memory-utilization 0.90` on L40S; if contention appears, set `OPTIMIZER_EMBED_DEVICE=cpu` for the proxy process.
+- Catalogue still keyed by Task only; Part 2 fields remain metadata.
