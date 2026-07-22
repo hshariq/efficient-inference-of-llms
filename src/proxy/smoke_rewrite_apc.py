@@ -75,17 +75,38 @@ def main() -> None:
     print(f"base_url={args.base_url}")
     print("Case: shared instruction (paraphrased) + DIFFERENT documents")
     print("---")
+    print("INPUT A (client → proxy):")
+    print(PROMPT_A)
+    print("---")
+    print("INPUT B (client → proxy):")
+    print(PROMPT_B)
+    print("---")
+
+    # Show what the rewrite layer would emit (same logic as the proxy).
+    from src.proxy.rewrite.pipeline import rewrite_request
+
+    for label, prompt in (("A", PROMPT_A), ("B", PROMPT_B)):
+        body, decision = rewrite_request(
+            {"model": MODEL, "messages": [{"role": "user", "content": prompt}]}
+        )
+        print(f"REWRITE {label}: action={decision.action} reason={decision.reason} task={decision.catalogue_task}")
+        if decision.action == "rewrite":
+            sys_msg = body["messages"][0]["content"]
+            usr_msg = body["messages"][1]["content"]
+            print(f"  system[:160]={sys_msg[:160]!r}")
+            print(f"  user[:160]={usr_msg[:160]!r}")
+    print("---")
 
     ttft_a, total_a, text_a = one_stream(client, PROMPT_A)
     print(f"Doc A (cold-ish)  ttft={ttft_a:.3f}s total={total_a:.3f}s")
-    print(f"  reply[:120]={text_a[:120]!r}")
+    print(f"  LLM output[:120]={text_a[:120]!r}")
 
     # Brief pause so APC can settle; not required but avoids overlapping decode.
     time.sleep(0.5)
 
     ttft_b, total_b, text_b = one_stream(client, PROMPT_B)
     print(f"Doc B (warm hope) ttft={ttft_b:.3f}s total={total_b:.3f}s")
-    print(f"  reply[:120]={text_b[:120]!r}")
+    print(f"  LLM output[:120]={text_b[:120]!r}")
 
     ratio = ttft_a / ttft_b if ttft_b > 0 else float("inf")
     print("---")

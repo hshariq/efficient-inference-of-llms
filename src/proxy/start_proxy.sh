@@ -26,12 +26,17 @@ export PROXY_HOST="${PROXY_HOST:-0.0.0.0}"
 export PROXY_PORT="${PROXY_PORT:-9000}"
 # Phase 4: on | tag_only | off
 export OPTIMIZER_REWRITE_MODE="${OPTIMIZER_REWRITE_MODE:-on}"
+# Part 2/3 tagging: basic|full  and  off|minilm|qwen3 (default: rules only)
+export OPTIMIZER_SCHEMA_FEATURES="${OPTIMIZER_SCHEMA_FEATURES:-full}"
+export OPTIMIZER_EMBEDDING_BACKEND="${OPTIMIZER_EMBEDDING_BACKEND:-off}"
 
 echo "=============================================="
 echo " Optimizer Box proxy (Phase 4 rewrite enabled)"
 echo " Upstream: ${VLLM_BASE_URL}"
 echo " Listen:   ${PROXY_HOST}:${PROXY_PORT}"
 echo " Rewrite:  ${OPTIMIZER_REWRITE_MODE}"
+echo " Features: ${OPTIMIZER_SCHEMA_FEATURES}"
+echo " EmbedFB:  ${OPTIMIZER_EMBEDDING_BACKEND}"
 echo " Gzip:     disabled (SSE / TTFT integrity)"
 echo "=============================================="
 

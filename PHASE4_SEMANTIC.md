@@ -126,6 +126,15 @@ going through the canonical-prefix catalogue, it belongs to Trimmer — **do not
 - If confidence &lt; threshold **or** no catalogue match → no rewrite.
 - Metric/log: bypass rate (should stay non-zero on messy traffic).
 
+**Rule-tagger limitations (flag for dissertation):**
+- Paraphrase coverage is only as good as `_SUMMARIZE_PATTERNS` / `_ENTITY_PATTERNS`
+  (see `tests/test_tag_coverage.py` for an explicit paraphrase asset).
+- **No negation handling** — e.g. “Don’t summarize, extract entities” may mis-tag;
+  accepted for v1 keyword tagging.
+- `length_class` is **logging-only** (character buckets); it does not select catalogue
+  prefixes (task enum does). Confidence is a simple heuristic, not a calibrated probability.
+- Tie-breaks use explicit `TASK_PRIORITY` (summarize before extract).
+
 ### 4d — Embedding assist (optional, only if rules insufficient)
 - Small Sbert/MPNet-class model.
 - Choose among **fixed** canonical prefix IDs (nearest neighbour / threshold).

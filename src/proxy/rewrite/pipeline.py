@@ -17,7 +17,8 @@ from typing import Any
 
 from src.proxy.rewrite.align import align_system_content, light_normalize
 from src.proxy.rewrite.catalogue import system_text_for_task
-from src.proxy.rewrite.schema import SchemaTags, Task, tag_user_text
+from src.proxy.rewrite.schema import SchemaTags, Task
+from src.proxy.rewrite.tagging import TagConfig, tag_with_timing
 
 logger = logging.getLogger("optimizer_box.rewrite")
 
@@ -30,12 +31,18 @@ class RewriteDecision:
     reason: str
     tags: SchemaTags | None
     catalogue_task: str | None = None
+    rule_ms: float | None = None
+    embed_ms: float | None = None
+    embed_used: bool = False
 
     def log_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "action": self.action,
             "reason": self.reason,
             "catalogue_task": self.catalogue_task,
+            "rule_ms": self.rule_ms,
+            "embed_ms": self.embed_ms,
+            "embed_used": self.embed_used,
         }
         if self.tags is not None:
             d["tags"] = {
@@ -43,6 +50,9 @@ class RewriteDecision:
                 "task": self.tags.task.value,
                 "length_class": self.tags.length_class.value,
                 "confidence": self.tags.confidence,
+                "entity_focus": self.tags.entity_focus.value,
+                "action_type": self.tags.action_type.value,
+                "excluded_terms": list(self.tags.excluded_terms),
             }
         else:
             d["tags"] = None
@@ -54,11 +64,7 @@ def _rewrite_mode() -> str:
 
 
 def _threshold() -> float:
-    raw = os.environ.get("OPTIMIZER_REWRITE_THRESHOLD", str(DEFAULT_CONFIDENCE_THRESHOLD))
-    try:
-        return float(raw)
-    except ValueError:
-        return DEFAULT_CONFIDENCE_THRESHOLD
+    return TagConfig.from_env().confidence_threshold
 
 
 def _last_user_text(messages: list[dict[str, Any]]) -> str | None:
@@ -101,10 +107,19 @@ def rewrite_request(body: dict[str, Any]) -> tuple[dict[str, Any], RewriteDecisi
         logger.info("rewrite %s", decision.log_dict())
         return body, decision
 
-    tags = tag_user_text(user_text)
+    timed = tag_with_timing(user_text, TagConfig.from_env())
+    tags = timed.tags
 
     if mode == "tag_only":
-        decision = RewriteDecision("identity", "tag_only_mode", tags, tags.task.value)
+        decision = RewriteDecision(
+            "identity",
+            "tag_only_mode",
+            tags,
+            tags.task.value,
+            rule_ms=timed.rule_ms,
+            embed_ms=timed.embed_ms,
+            embed_used=timed.embed_used,
+        )
         logger.info("rewrite %s", decision.log_dict())
         return body, decision
 
@@ -115,13 +130,24 @@ def rewrite_request(body: dict[str, Any]) -> tuple[dict[str, Any], RewriteDecisi
             "low_confidence_or_unknown_task",
             tags,
             tags.task.value,
+            rule_ms=timed.rule_ms,
+            embed_ms=timed.embed_ms,
+            embed_used=timed.embed_used,
         )
         logger.info("rewrite %s", decision.log_dict())
         return body, decision
 
     system_proto = system_text_for_task(tags.task)
     if not system_proto:
-        decision = RewriteDecision("bypass", "no_catalogue_entry", tags, tags.task.value)
+        decision = RewriteDecision(
+            "bypass",
+            "no_catalogue_entry",
+            tags,
+            tags.task.value,
+            rule_ms=timed.rule_ms,
+            embed_ms=timed.embed_ms,
+            embed_used=timed.embed_used,
+        )
         logger.info("rewrite %s", decision.log_dict())
         return body, decision
 
@@ -134,7 +160,16 @@ def rewrite_request(body: dict[str, Any]) -> tuple[dict[str, Any], RewriteDecisi
         ]
         new_body = copy.deepcopy(body)
         new_body["messages"] = new_messages
-        decision = RewriteDecision("rewrite", "canonical_prefix", tags, tags.task.value)
+        reason = "canonical_prefix_embed" if timed.embed_used else "canonical_prefix"
+        decision = RewriteDecision(
+            "rewrite",
+            reason,
+            tags,
+            tags.task.value,
+            rule_ms=timed.rule_ms,
+            embed_ms=timed.embed_ms,
+            embed_used=timed.embed_used,
+        )
         logger.info("rewrite %s", decision.log_dict())
         return new_body, decision
     except Exception as exc:  # noqa: BLE001 — never break the proxy path
@@ -143,6 +178,9 @@ def rewrite_request(body: dict[str, Any]) -> tuple[dict[str, Any], RewriteDecisi
             f"align_or_rewrite_error:{type(exc).__name__}",
             tags,
             tags.task.value,
+            rule_ms=timed.rule_ms,
+            embed_ms=timed.embed_ms,
+            embed_used=timed.embed_used,
         )
         logger.warning("rewrite failed, bypassing: %s", exc)
         logger.info("rewrite %s", decision.log_dict())
