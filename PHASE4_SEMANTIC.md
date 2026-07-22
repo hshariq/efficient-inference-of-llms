@@ -131,9 +131,94 @@ going through the canonical-prefix catalogue, it belongs to Trimmer — **do not
   (see `tests/test_tag_coverage.py` for an explicit paraphrase asset).
 - **No negation handling** — e.g. “Don’t summarize, extract entities” may mis-tag;
   accepted for v1 keyword tagging.
-- `length_class` is **logging-only** (character buckets); it does not select catalogue
-  prefixes (task enum does). Confidence is a simple heuristic, not a calibrated probability.
+- `length_class` is **logging-only** (token buckets via Llama-3.1 tokenizer); it does not
+  select catalogue prefixes (task enum does). Confidence is a simple heuristic, not a
+  calibrated probability.
 - Tie-breaks use explicit `TASK_PRIORITY` (summarize before extract).
+
+### Test map (don’t forget — no vLLM)
+
+These are **tagger unit/coverage** checks. They call `tag_user_text` only.
+They do **not** prove generalization to unseen user phrasing (that is Phase 6).
+
+#### `tests/test_tag_coverage.py` — “do summarize paraphrases still tag?”
+
+- Loads ~18 hand-written ways to say “summarize in 3 bullets” (`SUMMARIZE_PARAPHRASES`).
+- For each: `tag_user_text(prompt + fake_doc)` must return `task=summarize_3_bullets`
+  and `confidence >= 0.55`.
+- **Example:** `"I need a summary of this in 3 bullets."` + oak-tree doc → regex hits
+  `summary` + `3 bullets` → `summarize_3_bullets` → pass; if `unknown`, test fails
+  (that phrasing would bypass in the live proxy).
+- Also locks: tie-break prefers summarize; entity wins when it has more hits;
+  negation failure mode stays documented (`Don't summarize… extract…` still tags summarize).
+
+#### `tests/test_schema_features.py` — “do Part 2 metadata fields work?”
+
+- **entity_focus:** 16 team + 16 individual prompts → must tag `team` / `individual`.
+- **action_type:** 16 analysis + 16 retrieval + 16 generation → matching enum.
+- **excluded_terms:** pairs like  
+  `Write web scraping code…` vs `… without BeautifulSoup`  
+  → **same `task`**, but the second has `BeautifulSoup` in `excluded_terms`
+  (metadata only; generation correctness still relies on user text passing through).
+- Also: `rich_features=False` clears Part 2 fields; `excluded_terms` must **not**
+  change confidence.
+
+#### Related
+
+- `tests/test_rewrite_align.py` — block alignment + rewrite/bypass (needs Llama tokenizer).
+- `python -m src.proxy.ablation.run_tag_ablation` — same fixtures, prints INPUT/OUTPUT/METRICS
+  per condition (still no vLLM).
+- Full narrative + “authored set ≠ generalization” caveat:
+  `docs/PHASE4_DECISIONS_LOG.md`.
+
+#### Ablation conditions (tagging only — no vLLM)
+
+Same prompt set for all four. Each run prints per request:
+
+- **INPUT** — the prompt string  
+- **OUTPUT (tags)** — task / domain / confidence / entity_focus / action_type / excluded_terms  
+- **METRICS** — rule_ms, embed_ms, embed_used, embed_score, would_bypass  
+
+Then an aggregate: bypass %, mean rule_ms, mean embed_ms, embed-used %, VRAM.
+
+| # | `--conditions` | What is turned on | What you are measuring |
+|---|----------------|-------------------|------------------------|
+| 1 | `rules_only` | Part 1 fields only (`task`/`domain`/`length_class`). No Part 2. No embed. | Baseline rule tagger. Part 2 fields stay `unknown` / empty. |
+| 2 | `rules_plus_features` | (1) + Part 2 metadata (`entity_focus`, `action_type`, `excluded_terms`) | Do richer tags fill in? Catalogue/`task` should stay the same policy as (1) for in-schema prompts; maybe slight confidence bumps. |
+| 3 | `embed_minilm` | (2) + MiniLM fallback only if UNKNOWN or conf &lt; threshold | Does MiniLM rescue bypasses? Watch `embed_used`, `embed_ms`, bypass ↓. |
+| 4 | `embed_qwen3` | (2) + Qwen3-Embedding-0.6B on the same gate | Same as (3) with a stronger local embedder; also VRAM vs vLLM. **Uses a classification `Instruct:` wrapper on the query** (MiniLM does not). |
+
+**Slow walkthrough with one example prompt**  
+`Write web scraping code for this site without BeautifulSoup.`
+
+1. **`rules_only`**  
+   - Regex may not map “write code…” to summarize/extract → often `task=unknown`, `would_bypass=True`.  
+   - `entity_focus` / `action_type` / `excluded_terms` forced empty (rich features off).  
+   - `embed_ms=0`, `embed_used=False`.
+
+2. **`rules_plus_features`**  
+   - Still likely `task=unknown` (same task rules).  
+   - But now: `action_type=generation`, `excluded_terms=['BeautifulSoup']` (and maybe team/individual if present).  
+   - Still `embed_ms=0`. Shows metadata works even when we would not rewrite.
+
+3. **`embed_minilm`**  
+   - Rules still say UNKNOWN → fallback runs MiniLM vs fixed task exemplars.  
+   - If similarity ≥ min score: `task` becomes e.g. `extract_entities` or stays unmatched; `embed_used=True`, `embed_ms>0`.  
+   - If still weak: bypass remains. **This is what Aire must verify.**
+
+4. **`embed_qwen3`**  
+   - Same control flow as (3), different model (`Qwen/Qwen3-Embedding-0.6B`).  
+   - Compare bypass rate / embed_ms / VRAM to MiniLM — not mixed in one process.
+
+Commands (GPU node, `.venv`, no vLLM required for tagging):
+
+```bash
+python -m src.proxy.ablation.run_tag_ablation --conditions rules_only
+python -m src.proxy.ablation.run_tag_ablation --conditions rules_plus_features
+python -m src.proxy.ablation.run_tag_ablation --conditions embed_minilm
+python -m src.proxy.ablation.run_tag_ablation --conditions embed_qwen3
+# sample: add --limit 5 ; save: --jsonl logs/run.jsonl ; summary only: --quiet
+```
 
 ### 4d — Embedding assist (optional, only if rules insufficient)
 - Small Sbert/MPNet-class model.

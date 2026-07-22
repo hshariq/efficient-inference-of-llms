@@ -189,6 +189,15 @@ labels, never used for exclusion/negation.
 **Decision — default backend is `off`.** Production proxy stays rules-first; embed
 is opt-in for ablation / low-coverage rescue.
 
+**Decision — Qwen uses a classification instruct; MiniLM does not.** Qwen3-Embedding
+is instruction-aware. Per the HF card, queries should be
+`Instruct: …\nQuery:…` while documents/exemplars are encoded plain. We do **not**
+treat user text the same as MiniLM’s bare `encode()`. Instead Backend B wraps the
+user request with a fixed English instruct tailored to our two-task catalogue
+match (summarize-3-bullets vs extract-entities). MiniLM stays plain encode — it
+has no instruct channel. This is the methodological reason the two backends are
+not “the same code with a different weight file.”
+
 ### What is still unverified (do not claim in results yet)
 
 1. **Load / VRAM:** Qwen3-Embedding-0.6B (and MiniLM) on the same L40S as vLLM
