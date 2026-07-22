@@ -1,0 +1,27 @@
+Ablation request set size: 113
+Conditions: ['embed_minilm']
+Per-request detail: OFF (--quiet)
+
+========== CONDITION: embed_minilm ==========
+  [embed_minilm] loaded sentence-transformers/all-MiniLM-L6-v2 in 7190 ms
+
+--- aggregate [embed_minilm] ---
+  bypass=10.6%  mean_rule_ms=5.65  mean_embed_ms=0.61  embed_used=9.7%
+  vram_allocated≈95 MiB
+
+## Part 4 — Ablation results (2026-07-22 19:23 UTC)
+
+Shared request set = Part 2 coverage assets + summarize paraphrases (n=113). Latencies are **mean ms**, rule vs embed reported separately. VRAM is process `torch.cuda.memory_allocated` after backend load (None = CPU / unavailable).
+
+| Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used rate | VRAM |
+|-----------|-------------|--------------|---------------|-----------------|------|
+| `embed_minilm` | 10.6% | 5.65 | 0.61 | 9.7% | 95 MiB |
+
+**Notes:** Warm TTFT / Token Saving Ratio need live vLLM+APC (`smoke_rewrite_apc.py` / Phase 6) and are not duplicated here — tagging ablation isolates classifier behaviour only.
+
+### Decisions / caveats from this run
+
+- Embeddings used only when rules return UNKNOWN or confidence below threshold.
+- Qwen3-Embedding-0.6B VRAM must be read against vLLM `--gpu-memory-utilization 0.90` on L40S; if contention appears, set `OPTIMIZER_EMBED_DEVICE=cpu` for the proxy process.
+- Catalogue still keyed by Task only; Part 2 fields remain metadata.
+

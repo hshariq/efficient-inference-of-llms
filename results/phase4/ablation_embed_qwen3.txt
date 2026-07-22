@@ -1,0 +1,27 @@
+Ablation request set size: 113
+Conditions: ['embed_qwen3']
+Per-request detail: OFF (--quiet)
+
+========== CONDITION: embed_qwen3 ==========
+  [embed_qwen3] loaded Qwen/Qwen3-Embedding-0.6B in 40000 ms
+
+--- aggregate [embed_qwen3] ---
+  bypass=0.0%  mean_rule_ms=5.76  mean_embed_ms=4.27  embed_used=20.4%
+  vram_allocated≈2281 MiB
+
+## Part 4 — Ablation results (2026-07-22 19:25 UTC)
+
+Shared request set = Part 2 coverage assets + summarize paraphrases (n=113). Latencies are **mean ms**, rule vs embed reported separately. VRAM is process `torch.cuda.memory_allocated` after backend load (None = CPU / unavailable).
+
+| Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used rate | VRAM |
+|-----------|-------------|--------------|---------------|-----------------|------|
+| `embed_qwen3` | 0.0% | 5.76 | 4.27 | 20.4% | 2281 MiB |
+
+**Notes:** Warm TTFT / Token Saving Ratio need live vLLM+APC (`smoke_rewrite_apc.py` / Phase 6) and are not duplicated here — tagging ablation isolates classifier behaviour only.
+
+### Decisions / caveats from this run
+
+- Embeddings used only when rules return UNKNOWN or confidence below threshold.
+- Qwen3-Embedding-0.6B VRAM must be read against vLLM `--gpu-memory-utilization 0.90` on L40S; if contention appears, set `OPTIMIZER_EMBED_DEVICE=cpu` for the proxy process.
+- Catalogue still keyed by Task only; Part 2 fields remain metadata.
+
