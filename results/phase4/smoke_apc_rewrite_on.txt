@@ -18,11 +18,11 @@ REWRITE B: action=rewrite reason=canonical_prefix task=summarize_3_bullets
   system[:160]='You are a careful analyst. When given a document, respond with exactly three concise bullet points that capture the main ideas. Do not add a preamble or closing'
   user[:160]='Summarise this document in three bullet points: The City of Leeds approved a zoning ordinance for the waterfront district, allowing mixed-use towers up to 18 st'
 ---
-Doc A (cold-ish)  ttft=0.393s total=1.955s
-  LLM output[:120]="Here's a summary in 3 bullets:\n\n• Alpha Corp reported a 12% year-over-year increase in quarterly revenue, reaching $4.2B"
-Doc B (warm hope) ttft=0.039s total=1.496s
-  LLM output[:120]='Here are three bullet points summarizing the document:\n\n• The City of Leeds has approved a zoning ordinance for its wate'
+Doc A (cold-ish)  ttft=0.414s total=1.737s
+  LLM output[:120]="• Alpha Corp's quarterly revenue reached $4.2B, a 12% increase from the previous year.\n• The revenue growth was primaril"
+Doc B (warm hope) ttft=0.043s total=1.217s
+  LLM output[:120]='• The City of Leeds has approved a zoning ordinance for the waterfront district.\n• The ordinance allows for mixed-use to'
 ---
-TTFT A/B ratio = 10.00x  ( >1 means B was faster — expected under APC)
+TTFT A/B ratio = 9.64x  ( >1 means B was faster — expected under APC)
 Check proxy logs / response headers: X-Optimizer-Rewrite: rewrite
 Compare with OPTIMIZER_REWRITE_MODE=off restart if needed.
