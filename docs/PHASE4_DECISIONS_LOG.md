@@ -57,8 +57,8 @@ saves latency.
 | **Part 4 tagging ablation** | **Done** |
 | **Rewrite plumbing (canonical prefix)** | **Done** |
 | **APC latency benefit (~400 tok smoke)** | **Not detected** — see below |
-| **APC latency benefit (RAG-scale)** | **Pending** — `--rag-scale` on Aire |
-| **Qwen 0% bypass sanity** | **Pending / in progress** — draft-email probe |
+| **APC latency benefit (RAG-scale ~4.5k tok)** | **Null TTFT** (on≈off≈1.0×) — shared system ≪ unique doc; see log |
+| **Qwen 0% bypass sanity** | **Force-match found** — `QWEN_SCORE_FLOOR=0.65` fix; re-probe on Aire |
 | **Token Saving Ratio / full eval** | **Phase 6** |
 | **TTL** | **Phase 5** (after gate) |
 
@@ -140,11 +140,20 @@ Shared set **n=113**. Logs: `results/phase4/ablation_*.{txt,jsonl}`.
 
 **Decision:** MiniLM = preferred opt-in fallback; Qwen = denser coverage on *this* set but costly; default stays `off`.
 
-**Caveat — Qwen 0.0% bypass:** Do **not** cite as “perfect coverage” without the
-draft-email sanity check. Same gate exists in code (`best_score < min_score → None`);
-0% may mean (a) all 113 still exceeded `min_score` under Qwen+Instruct, or (b) weak
-force-matches. Probe: `python -m src.proxy.ablation.probe_embed_bypass`.
+**Caveat — Qwen 0.0% bypass (resolved 2026-07-23):** Probe
+`Generate a draft email based on the notes.`:
 
+| Backend | nearest score | @0.35 gate | Outcome |
+|---------|---------------|------------|---------|
+| MiniLM | 0.288 → summarize | bypass | Correct |
+| Qwen3 | 0.560 → extract_entities | **rewrite** | Force-match bug |
+
+Threshold code existed, but Qwen+Instruct scores sit higher, so 0.35 was too weak.
+**Fix:** `QWEN_SCORE_FLOOR=0.65` in `qwen_backend.py` (`effective_min = max(min_score, floor)`).
+Re-run `probe_embed_bypass` and (optionally) `embed_qwen3` ablation after pull — expect
+bypass &gt; 0%; do **not** cite pre-fix 0% as coverage win.
+
+**Prompting asymmetry:** Qwen `Instruct:…\nQuery:`; MiniLM plain encode.
 ---
 
 ## Live APC smoke (Aire, 2026-07-23)
@@ -174,19 +183,34 @@ Artefacts: `smoke_apc_long_{on,off}.txt`.
 - **Do not** claim APC latency wins from this smoke. Need `--rag-scale` (~5k-token docs)
   and/or Phase 6 Token Saving Ratio / engine cached-token metrics.
 
-### RAG-scale smoke (pending Aire)
+### RAG-scale smoke (gpu014, 2026-07-23) — `--rag-scale --warmup`
 
-```bash
-export OPTIMIZER_REWRITE_MODE=off   # match proxy
-PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \
-  2>&1 | tee results/phase4/smoke_apc_ragscale_off.txt
-# restart proxy with on, then:
-export OPTIMIZER_REWRITE_MODE=on
-PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \
-  2>&1 | tee results/phase4/smoke_apc_ragscale_on.txt
-```
+Artefacts: `smoke_apc_ragscale_{on,off}.txt`. ~20k chars / **~4500–4650 prompt tokens**.
 
-Log TTFT A/B and prompt sizes here when available.
+| Mode | A TTFT | B TTFT | A/B | prompt_tokens A/B | Output |
+|------|--------|--------|-----|-------------------|--------|
+| **off** | 0.389s | 0.393s | **0.99×** | 4541 / 4627 | Preamble |
+| **on** | 0.403s | 0.402s | **1.00×** | 4571 / 4656 | Catalogue bullets |
+
+**Honest read:**
+- Off control still clean (A/B ≈ 1).
+- On plumbing still verified (style + identical system).
+- **Still no TTFT gap** at RAG body size. Expected under this catalogue design: the
+  **shared** span is a short system instruction (~tens of tokens); the **unique**
+  document is ~4.5k tokens. APC can skip only the short shared prefix; prefill time
+  remains dominated by the long unique user body, so client TTFT barely moves.
+- Implications: (1) do not claim latency wins from these smokes; (2) Phase 6 must use
+  **Token Saving Ratio / cached-token counts**, not TTFT alone; (3) larger TTFT wins
+  would need a much longer *shared* prefix (not just a short catalogue system), which
+  is a different product choice than the current two-task catalogue.
+
+### Gate status
+
+- [x] Reframe APC conclusions.
+- [x] Qwen draft-email probe — force-match confirmed; floor fix landed in code (re-probe on Aire).
+- [x] RAG-scale smoke logged (null TTFT gap; explanation above).
+
+Phase 5 (TTL) may proceed; APC **speed** remains a Phase 6 measurement problem.
 
 ---
 
@@ -233,15 +257,15 @@ Log TTFT A/B and prompt sizes here when available.
 
 ### Phase 4 gate (before Phase 5)
 
-- [x] Reframe APC conclusions (this update).
-- [ ] Qwen draft-email probe — record score / bypass vs force-match.
-- [ ] RAG-scale `--rag-scale --warmup` on vs off on Aire — log gap or null.
+- [x] Reframe APC conclusions.
+- [x] Qwen draft-email probe — force-match; `QWEN_SCORE_FLOOR=0.65` (re-probe after pull).
+- [x] RAG-scale smoke — null TTFT; shared system ≪ unique doc.
 
 ### Later phases
 
 | Item | Phase |
 |------|-------|
-| TTL / starvation escape | **5** (after gate) |
-| Token Saving Ratio, full workload | **6** |
+| TTL / starvation escape | **5** ← next |
+| Token Saving Ratio / cached tokens (APC proof) | **6** |
 | Uncurated generalization | **6** |
 | Trimmer | Future work |

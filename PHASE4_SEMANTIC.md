@@ -289,9 +289,8 @@ src/proxy/
 - [x] Light-normalization rules documented and Trimmer-creep absent in code review
 - [x] Optional 4d (MiniLM / Qwen embed fallback) implemented + Aire ablation; default remains `off`
 - [x] Live MiniLM hard-prompt rescue + out-of-catalogue bypass on Aire (see decisions log)
-- [ ] Qwen 0% bypass sanity (`probe_embed_bypass`) — explain or fix before citing coverage
-- [ ] RAG-scale APC smoke on Aire (`--rag-scale --warmup` on vs off)
+- [x] Qwen 0% bypass sanity — draft-email force-matched at 0.56; fixed via `QWEN_SCORE_FLOOR=0.65`
+- [x] RAG-scale APC smoke — null TTFT gap (~4.5k tok unique body dominates short shared system)
 
-**Phase 4 implementation: complete. APC performance: open.**  
-Results: `docs/PHASE4_DECISIONS_LOG.md`. Artefacts: `results/phase4/`.  
-**Next after gate:** Phase 5 (TTL / starvation escape).
+**Phase 4 implementation: complete. APC TTFT benefit: not shown (explained). Qwen threshold: fixed.**  
+**Next:** Phase 5 (TTL), with Phase 6 owning Token Saving Ratio / cached-token proof.

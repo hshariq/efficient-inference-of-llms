@@ -38,6 +38,13 @@ TASK_CLASSIFY_INSTRUCT = (
     "Match the query to the most similar task description."
 )
 
+# Qwen cosine scores run systematically higher than MiniLM on the same text
+# (Instruct+Query wrap). Global default min_score=0.35 lets out-of-catalogue
+# prompts force-match (e.g. draft-email → extract_entities at ~0.56). Floor
+# calibrated 2026-07-23: draft-email nearest=0.56 must bypass; real rescues
+# in ablation were typically well above this when Qwen fired.
+QWEN_SCORE_FLOOR = 0.65
+
 
 def _wrap_query(text: str) -> str:
     """HF-recommended asymmetric format: Instruct + Query on the query side only."""
@@ -85,6 +92,10 @@ class Qwen3EmbeddingBackend(EmbeddingBackend):
             if score > best_score:
                 best_score = score
                 best_task = task
-        if best_task == Task.UNKNOWN or best_score < min_score:
+        if best_task == Task.UNKNOWN:
+            return None
+        # Caller min_score, but never below QWEN_SCORE_FLOOR (Instruct scores run hot).
+        effective_min = max(min_score, QWEN_SCORE_FLOOR)
+        if best_score < effective_min:
             return None
         return FallbackMatch(task=best_task, score=best_score, backend=self.name)

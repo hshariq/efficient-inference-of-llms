@@ -31,6 +31,10 @@ def _probe_backend(name: str, text: str, min_score: float) -> None:
         print(f"[{name}] backend unavailable")
         return
     print(f"\n=== backend={name} model={backend.model_id} min_score={min_score} ===")
+    if name == "qwen3":
+        from src.proxy.rewrite.embed.qwen_backend import QWEN_SCORE_FLOOR
+
+        print(f"  (Qwen effective floor = max(min_score, {QWEN_SCORE_FLOOR}))")
     backend.load()
     # Expose raw best score even when below threshold (duplicate match loop lightly).
     match = backend.match_task(text, min_score=min_score)
