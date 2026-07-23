@@ -3,38 +3,47 @@
 Running lab notebook for dissertation methodology / evaluation chapters.
 Separate from the Phase 4 spec (`PHASE4_SEMANTIC.md`). Artefacts: `results/phase4/`.
 
-**Last updated:** 2026-07-23 — **Phase 4 CLOSED**
+**Last updated:** 2026-07-23 — **implementation complete; APC performance still open**
 
 ---
 
 ## Executive summary (read this first)
 
 Phase 4 builds **schema tagging + optional embed fallback + block-aligned canonical
-prefix rewrite** in the Phase 2 proxy so vLLM APC can hit on
+prefix rewrite** in the Phase 2 proxy so vLLM APC *can* hit on
 **shared-instruction / different-document** traffic.
 
 ### Verdict
 
-**Phase 4 is complete.** Implementation, tagging ablation, embed VRAM, APC mechanism
-smokes (incl. long+warmup control), and live MiniLM hard-prompt / bypass are all done.
-Nothing Phase-4-blocking remains. Next work is **Phase 5 (TTL)**.
+**Implementation / plumbing: done.** Parts 0–4 code, tagging ablation, embed VRAM,
+rewrite path, MiniLM live hard-prompt + bypass are verified.
+
+**APC performance benefit: not yet shown.** At ~400 prompt tokens, rewrite-on and
+rewrite-off give the same warm TTFT A/B (~1.05×). That test cannot distinguish
+“cache reuse helping” from “fixed overhead dominating prefill.” Treat speed claims
+as **unverified** until RAG-scale (~multi-thousand token) smokes (or Phase 6 TSR)
+show a gap. Do **not** cite the long/warmup smoke as evidence that the mechanism
+saves latency.
+
+**Gate before Phase 5:** reframe (this file) + Qwen draft-email sanity + optional
+`--rag-scale` smoke on Aire.
 
 ### What was delivered
 
 | Area | Outcome |
 |------|---------|
-| **Implementation** | Parts 0–4 code complete (schema, Part 2 features, MiniLM + Qwen embed, ablation harness, proxy rewrite path). |
-| **Rules / Part 1–2** | Local pytest (110+); summarize 18/18; Part 2 metadata-only (catalogue keyed by `Task`). |
-| **Alignment** | Chat-template–aware pad; dummies `QQQ_…` / `ZZZ_…`. Model: `meta-llama/Llama-3.1-8B-Instruct`. |
-| **4-way tagging ablation** | n=113 Aire; MiniLM preferred trade-off; default embed **`off`**. |
-| **APC smoke** | Mechanism OK; long+warmup **off A/B ≈ 1.05×** (clean control); on/off TTFT similar at ~50ms floor → **TSR in Phase 6**. |
-| **Live MiniLM** | Hard prompt → `canonical_prefix_embed`; out-of-catalogue → embed try then **bypass**. |
+| **Implementation** | Parts 0–4 code complete. |
+| **Rules / Part 1–2** | Local pytest (110+); Part 2 metadata-only. |
+| **Alignment** | Chat-template pad; model `meta-llama/Llama-3.1-8B-Instruct`. |
+| **4-way tagging ablation** | n=113; MiniLM preferred cost/coverage; default embed **`off`**. |
+| **APC smoke (~400 tok)** | **Plumbing** OK (identical catalogue system + style). **Perf** null vs off at this scale. |
+| **Live MiniLM** | Hard prompt → embed rewrite; out-of-catalogue → bypass. |
 
 ### Defaults (unchanged)
 
 - `OPTIMIZER_REWRITE_MODE=on`
-- `OPTIMIZER_EMBEDDING_BACKEND=off` (opt-in `minilm` when wanted)
-- Trimmer / TTL / Token Saving Ratio / full baselines → **not Phase 4**
+- `OPTIMIZER_EMBEDDING_BACKEND=off`
+- Trimmer / TTL / TSR → not Phase 4
 
 ---
 
@@ -45,11 +54,13 @@ Nothing Phase-4-blocking remains. Next work is **Phase 5 (TTL)**.
 | **Implementation** | **Done** |
 | **Rules / Part 1–2** | **Done** |
 | **Part 3 embeddings (ablation + VRAM)** | **Done** (Aire) |
-| **Part 4 tagging ablation** | **Done** — `results/phase4/ablation_*` |
-| **APC smoke (short + long/warmup)** | **Done** — `results/phase4/smoke_apc_*` |
-| **Live MiniLM hard / bypass** | **Done** (gpu018) |
+| **Part 4 tagging ablation** | **Done** |
+| **Rewrite plumbing (canonical prefix)** | **Done** |
+| **APC latency benefit (~400 tok smoke)** | **Not detected** — see below |
+| **APC latency benefit (RAG-scale)** | **Pending** — `--rag-scale` on Aire |
+| **Qwen 0% bypass sanity** | **Pending / in progress** — draft-email probe |
 | **Token Saving Ratio / full eval** | **Phase 6** |
-| **TTL** | **Phase 5** |
+| **TTL** | **Phase 5** (after gate) |
 
 ---
 
@@ -73,14 +84,14 @@ Client → `POST /v1/chat/completions` (`app.py`) → `rewrite_request` (tag rul
 
 ## Part 1 — Schema hygiene
 
-**Regex:** expanded summarize patterns (incl. British `summarised` / `summary` / bullets).  
-**Tie-break:** explicit `TASK_PRIORITY` — summarize before extract (workload prior).  
-**Tokenizer:** same HF id as serving — `meta-llama/Llama-3.1-8B-Instruct`.  
+**Regex:** expanded summarize patterns (incl. British forms).  
+**Tie-break:** `TASK_PRIORITY` — summarize before extract.  
+**Tokenizer / model:** `meta-llama/Llama-3.1-8B-Instruct`.  
 **Length buckets:** short &lt;128 / medium &lt;1024 / long ≥1024 (logging only).
 
-**Coverage:** 18/18 summarize paraphrases → `summarize_3_bullets` (`tests/test_tag_coverage.py`).
+**Coverage:** 18/18 summarize paraphrases → `summarize_3_bullets`.
 
-**Limitation (accepted):** task-level negation (“Don’t summarize — extract”) only partially handled.
+**Limitation (accepted):** task-level negation only partially handled.
 
 ---
 
@@ -92,9 +103,7 @@ Client → `POST /v1/chat/completions` (`app.py`) → `rewrite_request` (tag rul
 | `action_type` | analysis / retrieval / generation / unknown | Metadata |
 | `excluded_terms` | captured phrases | Metadata; **never** bumps confidence |
 
-**Decision:** catalogue not forked on these fields.  
-**Coverage:** Part 2 fixtures 100% on authored set; pytest 110+ with tag coverage.  
-**Honest limit:** authored consistency ≠ uncurated generalization → Phase 6.
+**Decision:** catalogue not forked. Authored 100% ≠ generalization → Phase 6.
 
 ---
 
@@ -103,19 +112,24 @@ Client → `POST /v1/chat/completions` (`app.py`) → `rewrite_request` (tag rul
 | Backend | Model | Gate |
 |---------|-------|------|
 | MiniLM | `sentence-transformers/all-MiniLM-L6-v2` | UNKNOWN or conf &lt; threshold |
-| Qwen3 | `Qwen/Qwen3-Embedding-0.6B` | Same |
+| Qwen3 | `Qwen/Qwen3-Embedding-0.6B` | Same `min_score` gate in code |
 
 Exemplars + max cosine; never used for exclusion.  
 **Default backend: `off`.** Prefer **MiniLM** if enabling embed.
 
-**Alignment fix:** pad dummies `QQQ_…` vs `ZZZ_…` (not `DOCUMENT_A/B`).
+**Prompting asymmetry (write-up note):** Qwen wraps the *query* as
+`Instruct: …\nQuery:…` (model-card asymmetric retrieval); exemplars encode without
+instruct. MiniLM uses plain `encode()` on both sides. The 4-way ablation is therefore
+**backend weights + prompting strategy**, not a pure apple-to-apple weight swap.
+
+**Alignment fix:** pad dummies `QQQ_…` vs `ZZZ_…`.
 
 ---
 
 ## Part 4 — Tagging ablation (Aire gpu013, 2026-07-22)
 
 Harness: `python -m src.proxy.ablation.run_tag_ablation`  
-Shared set **n=113** (no vLLM). Logs: `results/phase4/ablation_*.{txt,jsonl}`.
+Shared set **n=113**. Logs: `results/phase4/ablation_*.{txt,jsonl}`.
 
 | Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used | VRAM |
 |-----------|-------------|--------------|---------------|------------|------|
@@ -124,76 +138,69 @@ Shared set **n=113** (no vLLM). Logs: `results/phase4/ablation_*.{txt,jsonl}`.
 | `embed_minilm` | **10.6%** | 6.59 | 0.76 | 9.7% | **95 MiB** |
 | `embed_qwen3` | **0.0%** | 5.76 | 4.27 | 20.4% | **2281 MiB** |
 
-**Decision:** MiniLM = preferred opt-in fallback; Qwen = max coverage / expensive; default stays `off`.
+**Decision:** MiniLM = preferred opt-in fallback; Qwen = denser coverage on *this* set but costly; default stays `off`.
+
+**Caveat — Qwen 0.0% bypass:** Do **not** cite as “perfect coverage” without the
+draft-email sanity check. Same gate exists in code (`best_score < min_score → None`);
+0% may mean (a) all 113 still exceeded `min_score` under Qwen+Instruct, or (b) weak
+force-matches. Probe: `python -m src.proxy.ablation.probe_embed_bypass`.
 
 ---
 
 ## Live APC smoke (Aire, 2026-07-23)
 
-Script: `PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py`  
-(proxy `:9000`, vLLM Llama-3.1-8B-Instruct + APC).  
-Case: paraphrased summarize instructions + **different** documents.
+Script: `PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py`
 
 ### Cold rewrite-on (gpu012, short docs)
 
-| | TTFT | Notes |
-|--|------|--------|
-| Doc A | ~1.884s | Cold-ish |
-| Doc B | ~0.043s | Warm |
-| **A/B** | **~43.8×** | Anecdotal cold-start; clean bullets |
+A/B ~43.8× — anecdotal cold-start; **not** a controlled APC proof.
 
-### Warm short-doc pair (gpu018) — confounded by warmup
+### Warm short-doc pair — confounded by warmup (~9–10× both modes)
 
-| Mode | A/B | Note |
-|------|-----|------|
-| off / on | ~9–10× | Not diagnostic |
+### Controlled pair: `--long --warmup` (~400 prompt tokens)
 
-### Strong smoke: `--long --warmup` (gpu018) — primary controlled pair
+Artefacts: `smoke_apc_long_{on,off}.txt`.
 
-Artefacts: `results/phase4/smoke_apc_long_off.txt`, `smoke_apc_long_on.txt`.  
-`cached_tokens` not reported by this vLLM OpenAI usage payload.
+| Mode | A TTFT | B TTFT | A/B | prompt_tokens | Output |
+|------|--------|--------|-----|---------------|--------|
+| **off** | 0.053s | 0.050s | **1.05×** | ~400 | Preamble |
+| **on** | 0.055s | 0.052s | **1.05×** | ~430 | Catalogue bullets |
 
-| Mode | A TTFT | B TTFT | A/B | prompt_tokens A/B | Output |
-|------|--------|--------|-----|-------------------|--------|
-| **off** | 0.053s | 0.050s | **1.05×** | 405 / 395 | Preamble |
-| **on** | 0.055s | 0.052s | **1.05×** | 435 / 424 | Catalogue bullets only |
+**Honest read (gate finding):**
+- Rewrite **plumbing** verified: on applies identical catalogue system; off does not (style differs).
+- Off A/B ≈ 1 is a **good negative control** (warmup noise removed).
+- On A/B ≈ off A/B ⇒ **no detectable TTFT benefit** at this scale. Prefill of ~400 tokens
+  on L40S finishes in ~50ms; shared system span savings sit under fixed overhead.
+- **Do not** claim APC latency wins from this smoke. Need `--rag-scale` (~5k-token docs)
+  and/or Phase 6 Token Saving Ratio / engine cached-token metrics.
 
-**Interpretation:**
-- Off control **verified** (A/B ≈ 1 after warmup) — earlier large off ratios were engine warmup.
-- On **mechanism verified** (same system + style); TTFT on≈off at ~50ms floor on L40S for ~400-token prompts.
-- **Quantitative APC / Token Saving Ratio → Phase 6.**
+### RAG-scale smoke (pending Aire)
+
+```bash
+export OPTIMIZER_REWRITE_MODE=off   # match proxy
+PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \
+  2>&1 | tee results/phase4/smoke_apc_ragscale_off.txt
+# restart proxy with on, then:
+export OPTIMIZER_REWRITE_MODE=on
+PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \
+  2>&1 | tee results/phase4/smoke_apc_ragscale_on.txt
+```
+
+Log TTFT A/B and prompt sizes here when available.
 
 ---
 
 ## Live MiniLM hard-prompt + bypass (gpu018, 2026-07-23)
 
-Proxy: `OPTIMIZER_REWRITE_MODE=on`, `OPTIMIZER_EMBEDDING_BACKEND=minilm`.
+### Rescue
 
-### Rescue (rules weak → embed → rewrite)
+`I need a 3-bullet overview…` → `canonical_prefix_embed`, `embed_used=True`,
+`summarize_3_bullets` (first-load embed_ms ~2.6s).
 
-Prompt: `I need a 3-bullet overview of the sales team performance.` (+ short doc)
+### Safety bypass (MiniLM)
 
-| Field | Value |
-|--------|--------|
-| `reason` | `canonical_prefix_embed` |
-| `embed_used` | `True` |
-| `catalogue_task` | `summarize_3_bullets` |
-| `embed_ms` (first load) | ~2624 ms |
-| Output | Bullet summary (as expected) |
-
-### Safety bypass (out of catalogue)
-
-Prompt: `Generate a draft email based on the notes.`
-
-| Field | Value |
-|--------|--------|
-| `action` | `bypass` |
-| `task` | `unknown` |
-| `embed_ms` | ~4.3 ms (encode attempted) |
-| `embed_used` | `False` (no score ≥ min) |
-| Upstream | Original text → vLLM (“I don't see any notes…”) |
-
-**Decision confirmed:** embed is fallback-only; failed match does not force a wrong catalogue task.
+`Generate a draft email based on the notes.` → `bypass`, `embed_used=False`
+(encode attempted, score below min). Upstream got original text.
 
 ---
 
@@ -201,11 +208,11 @@ Prompt: `Generate a draft email based on the notes.`
 
 1. Rules first; embed fallback-only; default embed **`off`**.  
 2. If embed on → prefer **MiniLM** over Qwen for live proxy.  
-3. Catalogue keyed by **Task** only (summarize / extract).  
+3. Catalogue keyed by **Task** only.  
 4. Exclusion = rules only; does not affect confidence.  
 5. Align on **rendered** chat-template span.  
 6. Low confidence / UNKNOWN after all stages → **bypass**.  
-7. Trimmer out of scope; light normalize only.
+7. No APC **speed** claim from ~400-token smokes.
 
 ---
 
@@ -213,38 +220,28 @@ Prompt: `Generate a draft email based on the notes.`
 
 | Path | Contents |
 |------|----------|
-| `results/phase4/ablation_rules_only.txt` | Rules-only tee |
-| `results/phase4/ablation_rules_plus_features.{txt,jsonl}` | Part 2 features |
-| `results/phase4/ablation_embed_minilm.{txt,jsonl}` | MiniLM ablation |
-| `results/phase4/ablation_embed_qwen3.{txt,jsonl}` | Qwen ablation |
-| `results/phase4/smoke_apc_rewrite_*.txt` | Short warm smokes |
-| `results/phase4/smoke_apc_long_{on,off}.txt` | Long + warmup smokes |
-| `results/phase4/smoke_minilm_hard_prompt.txt` | Optional tee of hard-prompt client output |
+| `results/phase4/ablation_*` | 4-way tagging ablation |
+| `results/phase4/smoke_apc_long_*.txt` | ~400-tok controlled smoke |
+| `results/phase4/smoke_apc_ragscale_*.txt` | RAG-scale (when run) |
+| `src/proxy/ablation/probe_embed_bypass.py` | Qwen/MiniLM draft-email probe |
 | `docs/PHASE4_DECISIONS_LOG.md` | This file |
-| `PHASE4_SEMANTIC.md` | Spec / design |
-| `src/proxy/smoke_rewrite_apc.py` | Supports `--long --warmup` |
+| `PHASE4_SEMANTIC.md` | Spec |
 
 ---
 
-## What’s next (Phase 4 closed)
+## What’s next
 
-### Phase 4 remaining
+### Phase 4 gate (before Phase 5)
 
-**None.** All planned and optional Phase 4 checks are done.
+- [x] Reframe APC conclusions (this update).
+- [ ] Qwen draft-email probe — record score / bypass vs force-match.
+- [ ] RAG-scale `--rag-scale --warmup` on vs off on Aire — log gap or null.
 
 ### Later phases
 
 | Item | Phase |
 |------|-------|
-| **TTL / starvation escape** | **5** ← start here next |
-| Token Saving Ratio, cache hit rate, full workload | **6** |
-| Uncurated / ShareGPT-style generalization | **6** |
-| Baselines (e.g. GPTCache), multi-seed tables | **6** |
+| TTL / starvation escape | **5** (after gate) |
+| Token Saving Ratio, full workload | **6** |
+| Uncurated generalization | **6** |
 | Trimmer | Future work |
-| Catalogue fork on Part 2 facets | Future ablation |
-
-### Suggested next session
-
-1. Commit/push any remaining Aire `results/phase4/*` + this log from Windows.  
-2. Open / draft **Phase 5 TTL** design (priority escalation when a request waits too long).  
-3. Keep proxy defaults: rewrite `on`, embed `off` unless testing fallback.

@@ -1,8 +1,8 @@
 # Phase 4 results
 
-Tracked experiment artefacts for Phase 4 (tagging ablation + APC smoke + MiniLM live).
-**Narrative / decisions (source of truth):** `docs/PHASE4_DECISIONS_LOG.md`  
-**Status:** Phase 4 **CLOSED** (2026-07-23).
+Narrative / decisions: **`docs/PHASE4_DECISIONS_LOG.md`**  
+**Status:** implementation complete; **APC latency benefit not shown** at ~400-token smoke.
+Gate before Phase 5: Qwen draft-email probe + optional `--rag-scale` smoke.
 
 ## Tagging ablation (n=113, no vLLM)
 
@@ -10,35 +10,34 @@ Tracked experiment artefacts for Phase 4 (tagging ablation + APC smoke + MiniLM 
 |------|-----------|
 | `ablation_rules_only.txt` | rules only |
 | `ablation_rules_plus_features.{txt,jsonl}` | + Part 2 features |
-| `ablation_embed_minilm.{txt,jsonl}` | + MiniLM fallback |
-| `ablation_embed_qwen3.{txt,jsonl}` | + Qwen3-Embedding-0.6B |
+| `ablation_embed_minilm.{txt,jsonl}` | + MiniLM (~10.6% bypass) |
+| `ablation_embed_qwen3.{txt,jsonl}` | + Qwen (~0% bypass — **sanity-check before citing**) |
 
-Headline: rules bypass ~20.4%; MiniLM ~10.6% @ ~95 MiB; Qwen ~0% @ ~2.2 GiB.  
-Default proxy embed stays **`off`**; MiniLM preferred if enabled.
+Default embed stays **`off`**; MiniLM preferred if enabled.  
+Qwen uses Instruct+Query wrap; MiniLM does not (not pure weight swap).
+
+```bash
+PYTHONPATH=. python -m src.proxy.ablation.probe_embed_bypass
+```
 
 ## APC smoke (vLLM + proxy)
 
-| File | Mode |
-|------|------|
-| `smoke_apc_rewrite_off.txt` / `_on.txt` | Short docs (warm) |
-| `smoke_apc_long_off.txt` / `_on.txt` | **Primary control:** `--long --warmup` — off A/B ≈ 1.05× |
+| File | Scale | Read |
+|------|-------|------|
+| `smoke_apc_long_{on,off}.txt` | ~400 tok | Plumbing OK; **on≈off TTFT** — perf unverified |
+| `smoke_apc_ragscale_{on,off}.txt` | ~5k tok | Preferred check for a detectable gap |
 
 ```bash
-export OPTIMIZER_REWRITE_MODE=off   # must match proxy process
-PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --long --warmup \
-  2>&1 | tee results/phase4/smoke_apc_long_off.txt
+export OPTIMIZER_REWRITE_MODE=off   # must match proxy
+PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \
+  2>&1 | tee results/phase4/smoke_apc_ragscale_off.txt
+
+export OPTIMIZER_REWRITE_MODE=on
+PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \
+  2>&1 | tee results/phase4/smoke_apc_ragscale_on.txt
 ```
-
-## Live MiniLM
-
-| Check | Result |
-|-------|--------|
-| Hard summarize paraphrase | `canonical_prefix_embed`, `embed_used=True` |
-| Out-of-catalogue email draft | `bypass` after embed miss (`embed_used=False`) |
-
-Optional client tee: `smoke_minilm_hard_prompt.txt`.
 
 ## Not Phase 4
 
 - Token Saving Ratio / full eval → **Phase 6**  
-- TTL → **Phase 5**  
+- TTL → **Phase 5** (after gate)  

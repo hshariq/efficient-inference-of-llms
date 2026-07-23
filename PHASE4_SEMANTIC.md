@@ -283,10 +283,15 @@ src/proxy/
 - [x] 4b schema + catalogue + **chat-template–aware** block alignment unit tests
 - [x] Model id locked: `meta-llama/Llama-3.1-8B-Instruct` (no Llama-3 mix-ups)
 - [x] 4c bypass path (low confidence / unknown)
-- [x] 4e shared-instruction / different-data pairs smoke on Aire (APC TTFT) — see `docs/PHASE4_DECISIONS_LOG.md` (mechanism verified; warm on/off ratio caveat; TSR → Phase 6)
+- [x] 4e shared-instruction / different-data pairs smoke on Aire — **plumbing** verified;
+      **APC latency benefit not detectable** at ~400-token `--long --warmup` (on A/B ≈ off A/B).
+      RAG-scale `--rag-scale` + Phase 6 TSR still required before any speed claim.
 - [x] Light-normalization rules documented and Trimmer-creep absent in code review
 - [x] Optional 4d (MiniLM / Qwen embed fallback) implemented + Aire ablation; default remains `off`
 - [x] Live MiniLM hard-prompt rescue + out-of-catalogue bypass on Aire (see decisions log)
+- [ ] Qwen 0% bypass sanity (`probe_embed_bypass`) — explain or fix before citing coverage
+- [ ] RAG-scale APC smoke on Aire (`--rag-scale --warmup` on vs off)
 
-**Phase 4: CLOSED (2026-07-23).** Results: `docs/PHASE4_DECISIONS_LOG.md`. Artefacts: `results/phase4/`.  
-**Next:** Phase 5 (TTL / starvation escape).
+**Phase 4 implementation: complete. APC performance: open.**  
+Results: `docs/PHASE4_DECISIONS_LOG.md`. Artefacts: `results/phase4/`.  
+**Next after gate:** Phase 5 (TTL / starvation escape).

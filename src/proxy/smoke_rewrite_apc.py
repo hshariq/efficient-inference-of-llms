@@ -8,7 +8,8 @@ With OPTIMIZER_REWRITE_MODE=on, both get the same block-aligned system prefix.
 Examples (GPU node, vLLM :8000 + proxy :9000):
   PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py
   PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --long --warmup
-  PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --long --warmup 2>&1 | tee results/phase4/smoke_apc_long_on.txt
+  PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --rag-scale --warmup \\
+    2>&1 | tee results/phase4/smoke_apc_ragscale_on.txt
 
 Match smoke-shell OPTIMIZER_REWRITE_MODE to the proxy process (on|off).
 """
@@ -18,11 +19,12 @@ from __future__ import annotations
 import argparse
 import os
 import time
-from typing import Any
+from typing import Any, Literal
 
 from openai import OpenAI
 
 MODEL = "meta-llama/Llama-3.1-8B-Instruct"
+DocScale = Literal["short", "long", "rag"]
 
 DOC_A_SHORT = (
     "Alpha Corp reported quarterly revenue of $4.2B, up 12% year over year, "
@@ -91,9 +93,37 @@ resilience works, and air-quality sensors along the A61 corridor.
 """.strip()
 
 
-def _prompts(*, long: bool) -> tuple[str, str]:
-    doc_a = DOC_A_LONG if long else DOC_A_SHORT
-    doc_b = DOC_B_LONG if long else DOC_B_SHORT
+def _expand_doc(seed: str, *, tag: str, target_chars: int) -> str:
+    """Pad a seed with unique numbered paragraphs until ~target_chars (≈ tokens/4)."""
+    parts = [seed.strip(), ""]
+    n = 0
+    while sum(len(p) for p in parts) < target_chars:
+        n += 1
+        parts.append(
+            f"[{tag} section {n}] Additional context unique to document {tag}: "
+            f"metric_{n}={n * 17 % 97}, stakeholder_{n % 11}, site_code={tag}-{n:04d}. "
+            f"Narrative filler elaborates operational detail {n} without repeating the "
+            f"peer document's entities, so user-body LCP stays low while the shared "
+            f"catalogue system prefix (under rewrite-on) remains the APC candidate. "
+            f"Clause {n} records timestamps, owners, and residual risk notes for audit."
+        )
+        parts.append("")
+    return "\n".join(parts).strip()
+
+
+# ~5k tokens ≈ 20k chars of English-ish text (thesis RAG scale).
+_RAG_TARGET_CHARS = 20_000
+DOC_A_RAG = _expand_doc(DOC_A_LONG, tag="ALPHA", target_chars=_RAG_TARGET_CHARS)
+DOC_B_RAG = _expand_doc(DOC_B_LONG, tag="LEEDS", target_chars=_RAG_TARGET_CHARS)
+
+
+def _prompts(*, scale: DocScale) -> tuple[str, str]:
+    if scale == "rag":
+        doc_a, doc_b = DOC_A_RAG, DOC_B_RAG
+    elif scale == "long":
+        doc_a, doc_b = DOC_A_LONG, DOC_B_LONG
+    else:
+        doc_a, doc_b = DOC_A_SHORT, DOC_B_SHORT
     prompt_a = f"Please summarize the following in 3 bullets.\n\n{doc_a}"
     prompt_b = f"Summarise this document in three bullet points:\n\n{doc_b}"
     return prompt_a, prompt_b
@@ -170,7 +200,12 @@ def main() -> None:
     parser.add_argument(
         "--long",
         action="store_true",
-        help="Use longer distinct documents (stronger prefill / APC contrast)",
+        help="Use ~1.5–2k char docs (still often under TTFT floor on L40S)",
+    )
+    parser.add_argument(
+        "--rag-scale",
+        action="store_true",
+        help="Use ~5k-token-scale distinct docs (thesis RAG size; preferred APC check)",
     )
     parser.add_argument(
         "--warmup",
@@ -185,13 +220,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    prompt_a, prompt_b = _prompts(long=args.long)
+    if args.rag_scale:
+        scale: DocScale = "rag"
+    elif args.long:
+        scale = "long"
+    else:
+        scale = "short"
+
+    prompt_a, prompt_b = _prompts(scale=scale)
     mode = os.environ.get("OPTIMIZER_REWRITE_MODE", "on").strip().lower()
 
     client = OpenAI(base_url=args.base_url, api_key="EMPTY")
     print(f"base_url={args.base_url}")
     print(f"smoke_shell OPTIMIZER_REWRITE_MODE={mode!r} (must match proxy process)")
-    print(f"docs={'long' if args.long else 'short'}  warmup={args.warmup}")
+    print(f"docs={scale}  warmup={args.warmup}")
     print("Case: shared instruction (paraphrased) + DIFFERENT documents")
     print("---")
     print(f"INPUT A chars={len(prompt_a)}:")
@@ -253,7 +295,10 @@ def main() -> None:
         print(
             "cached_tokens not reported by this vLLM build — rely on TTFT + rewrite logs."
         )
-    print("Ideal: rewrite-off → similar A/B + low B cached; rewrite-on → high B cached.")
+    print(
+        "Read: at short/long scale, identical on/off A/B means perf unverified. "
+        "At rag-scale, on should show lower B TTFT (or higher B cached) than off if APC helps."
+    )
     print("Proxy headers: X-Optimizer-Rewrite should match action above.")
 
 
