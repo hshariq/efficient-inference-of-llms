@@ -89,13 +89,12 @@ Wait in the queue until you land on a compute node (e.g. `gpu001`). Only then st
   - [x] Aire smoke via `:9000` + `bench_overhead.py --n 30` (~+1 ms overhead)
   - [ ] Optional: `smoke_parallel.py --n 10`; commit/push Phase 2 + parallel smoke
 - [~] **Phase 3: Trimmer preprocessing — SKIPPED for this dissertation** (cite as **future work**)
-- [ ] **Phase 4: Semantic sub-batching + canonical prefixes** — see `PHASE4_SEMANTIC.md`
-  - [x] 4a–4c code: schema tagger, catalogue, chat-template block align, bypass, proxy headers
-  - [x] Unit tests in `tests/test_rewrite_align.py` (run on Aire with HF cache / `HF_TOKEN`)
-  - [ ] Aire: `git pull`, restart proxy (`OPTIMIZER_REWRITE_MODE=on`), confirm `X-Optimizer-Rewrite: rewrite`
-  - [ ] Aire 4e: `python src/proxy/smoke_rewrite_apc.py` (shared-instruction / different-data TTFT)
-  - Must include: **block alignment** (16-token), shared-instruction/**different-data** tests, no Trimmer creep
-- [ ] Phase 5: TTL / starvation escape hatch
+- [x] **Phase 4: Semantic sub-batching + canonical prefixes** — see `PHASE4_SEMANTIC.md` / `docs/PHASE4_DECISIONS_LOG.md`
+  - APC TTFT benefit not shown at smoke scale (Phase 6 TSR); Qwen floor fix landed
+- [~] **Phase 5: TTL / starvation escape** — see `PHASE5_TTL.md` / `docs/PHASE5_DECISIONS_LOG.md`
+  - [x] Admission hold + TTL/peer flush (`src/proxy/ttl/`), default `OPTIMIZER_TTL_MODE=off`
+  - [x] Unit tests `tests/test_ttl_queue.py`
+  - [ ] Aire: `OPTIMIZER_TTL_MODE=on` + `python src/proxy/smoke_ttl.py`
 - [ ] Phase 6: Evaluation harness (vanilla / APC / GPTCache / Optimizer Box)
 
 **Scope note:** Architecture still *includes* Trimmer conceptually (`project-context.md` / diagram), but we are **not implementing** it in the submitted system. Ablation “(b) Trimmer alone” is dropped; eval focuses on proxy + semantic sub-batching (+ TTL) vs baselines.

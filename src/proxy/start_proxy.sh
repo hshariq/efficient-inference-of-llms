@@ -29,14 +29,21 @@ export OPTIMIZER_REWRITE_MODE="${OPTIMIZER_REWRITE_MODE:-on}"
 # Part 2/3 tagging: basic|full  and  off|minilm|qwen3 (default: rules only)
 export OPTIMIZER_SCHEMA_FEATURES="${OPTIMIZER_SCHEMA_FEATURES:-full}"
 export OPTIMIZER_EMBEDDING_BACKEND="${OPTIMIZER_EMBEDDING_BACKEND:-off}"
+# Phase 5: micro-admission hold (default off)
+export OPTIMIZER_TTL_MODE="${OPTIMIZER_TTL_MODE:-off}"
+export OPTIMIZER_ADMISSION_HOLD_MS="${OPTIMIZER_ADMISSION_HOLD_MS:-50}"
+export OPTIMIZER_MAX_TTL_MS="${OPTIMIZER_MAX_TTL_MS:-200}"
+export OPTIMIZER_TTL_BATCH_PEERS="${OPTIMIZER_TTL_BATCH_PEERS:-8}"
+export OPTIMIZER_TTL_SET_PRIORITY="${OPTIMIZER_TTL_SET_PRIORITY:-0}"
 
 echo "=============================================="
-echo " Optimizer Box proxy (Phase 4 rewrite enabled)"
+echo " Optimizer Box proxy (Phase 4 rewrite + Phase 5 admission hold)"
 echo " Upstream: ${VLLM_BASE_URL}"
 echo " Listen:   ${PROXY_HOST}:${PROXY_PORT}"
 echo " Rewrite:  ${OPTIMIZER_REWRITE_MODE}"
 echo " Features: ${OPTIMIZER_SCHEMA_FEATURES}"
 echo " EmbedFB:  ${OPTIMIZER_EMBEDDING_BACKEND}"
+echo " Hold:     ${OPTIMIZER_TTL_MODE} (window=${OPTIMIZER_ADMISSION_HOLD_MS}ms max_ttl=${OPTIMIZER_MAX_TTL_MS}ms peers=${OPTIMIZER_TTL_BATCH_PEERS})"
 echo " Gzip:     disabled (SSE / TTFT integrity)"
 echo "=============================================="
 

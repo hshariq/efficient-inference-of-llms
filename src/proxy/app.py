@@ -4,6 +4,8 @@ Optimizer Box proxy in front of vLLM.
 Phase 2: pass-through HTTP + SSE.
 Phase 4: optional schema rewrite onto block-aligned canonical prefixes
          (OPTIMIZER_REWRITE_MODE=on|tag_only|off).
+Phase 5: optional admission hold + TTL starvation escape
+         (OPTIMIZER_TTL_MODE=on|off).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from src.proxy.config import vllm_base_url
 from src.proxy.rewrite import rewrite_request
 from src.proxy.rewrite.align import warm_alignment_cache
+from src.proxy.ttl import TtlConfig, get_admission_hold
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("optimizer_box.proxy")
@@ -46,7 +49,14 @@ async def lifespan(app: FastAPI):
         headers={"Authorization": "Bearer EMPTY"},
     )
     app.state.vllm_base_url = base
+    app.state.ttl = get_admission_hold(TtlConfig.from_env())
     print(f"[proxy] upstream VLLM_BASE_URL={base}")
+    print(
+        f"[proxy] TTL/admission-hold mode={app.state.ttl.config.mode} "
+        f"hold_ms={app.state.ttl.config.admission_hold_ms} "
+        f"max_ttl_ms={app.state.ttl.config.max_ttl_ms} "
+        f"peers={app.state.ttl.config.batch_peers}"
+    )
     try:
         warm_alignment_cache()
         print("[proxy] rewrite alignment cache warmed")
@@ -61,8 +71,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Optimizer Box Proxy",
-    version="0.4.0",
-    description="Pass-through + Phase-4 canonical prefix rewrite",
+    version="0.5.0",
+    description="Pass-through + Phase-4 rewrite + Phase-5 TTL hold",
     lifespan=lifespan,
 )
 
@@ -78,6 +88,13 @@ def _filter_request_headers(request: Request) -> dict[str, str]:
     return out
 
 
+def _maybe_set_priority(body: dict[str, Any], *, escalated: bool, enabled: bool) -> None:
+    if not enabled or not escalated:
+        return
+    # vLLM: lower priority value = higher scheduling priority (best-effort).
+    body["priority"] = 0
+
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
     client: httpx.AsyncClient = app.state.http
@@ -87,10 +104,12 @@ async def health() -> dict[str, Any]:
         upstream_ok = r.status_code == 200
     except httpx.HTTPError:
         upstream_ok = False
+    ttl = getattr(app.state, "ttl", None)
     return {
         "status": "ok" if upstream_ok else "degraded",
         "upstream": app.state.vllm_base_url,
         "upstream_reachable": upstream_ok,
+        "ttl_mode": ttl.config.mode if ttl else "unknown",
     }
 
 
@@ -109,10 +128,23 @@ async def list_models() -> Response:
 async def chat_completions(request: Request) -> Response:
     body = await request.json()
     body, decision = rewrite_request(body)
-    # Echo decision in a response header for debugging (SSE-safe).
+
+    ttl_hold = getattr(app.state, "ttl", None) or get_admission_hold()
+    ttl_decision = await ttl_hold.admit(
+        decision.catalogue_task,
+        rewritten=(decision.action == "rewrite"),
+    )
+    _maybe_set_priority(
+        body,
+        escalated=ttl_decision.ttl_escalated,
+        enabled=ttl_hold.config.set_priority,
+    )
+
     debug_headers = {
         "X-Optimizer-Rewrite": decision.action,
         "X-Optimizer-Reason": decision.reason[:128],
+        "X-Optimizer-TTL": ttl_decision.header_value(),
+        "X-Optimizer-TTL-Wait-Ms": f"{ttl_decision.wait_ms:.2f}",
     }
     if decision.catalogue_task:
         debug_headers["X-Optimizer-Task"] = decision.catalogue_task
@@ -180,8 +212,8 @@ async def root() -> JSONResponse:
     return JSONResponse(
         {
             "service": "optimizer-box-proxy",
-            "phase": 4,
-            "mode": "canonical-prefix-rewrite",
+            "phase": 5,
+            "mode": "canonical-prefix-rewrite+ttl",
             "upstream": app.state.vllm_base_url,
         }
     )
