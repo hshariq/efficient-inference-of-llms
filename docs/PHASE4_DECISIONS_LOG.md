@@ -58,7 +58,7 @@ saves latency.
 | **Rewrite plumbing (canonical prefix)** | **Done** |
 | **APC latency benefit (~400 tok smoke)** | **Not detected** — see below |
 | **APC latency benefit (RAG-scale ~4.5k tok)** | **Null TTFT** (on≈off≈1.0×) — shared system ≪ unique doc; see log |
-| **Qwen 0% bypass sanity** | **Force-match found** — `QWEN_SCORE_FLOOR=0.65` fix; re-probe on Aire |
+| **Qwen 0% bypass sanity** | **Fixed** — draft-email bypasses under floor 0.65 (re-probed Aire) |
 | **Token Saving Ratio / full eval** | **Phase 6** |
 | **TTL** | **Phase 5** (after gate) |
 
