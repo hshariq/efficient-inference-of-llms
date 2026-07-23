@@ -286,5 +286,7 @@ src/proxy/
 - [x] 4e shared-instruction / different-data pairs smoke on Aire (APC TTFT) — see `docs/PHASE4_DECISIONS_LOG.md` (mechanism verified; warm on/off ratio caveat; TSR → Phase 6)
 - [x] Light-normalization rules documented and Trimmer-creep absent in code review
 - [x] Optional 4d (MiniLM / Qwen embed fallback) implemented + Aire ablation; default remains `off`
+- [x] Live MiniLM hard-prompt rescue + out-of-catalogue bypass on Aire (see decisions log)
 
-**Phase 4 core: complete.** Results summary: `docs/PHASE4_DECISIONS_LOG.md`. Artefacts: `results/phase4/`.
+**Phase 4: CLOSED (2026-07-23).** Results: `docs/PHASE4_DECISIONS_LOG.md`. Artefacts: `results/phase4/`.  
+**Next:** Phase 5 (TTL / starvation escape).
