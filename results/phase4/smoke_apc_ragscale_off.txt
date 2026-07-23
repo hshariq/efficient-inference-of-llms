@@ -1,0 +1,44 @@
+base_url=http://localhost:9000/v1
+smoke_shell OPTIMIZER_REWRITE_MODE='off' (must match proxy process)
+docs=rag  warmup=True
+Case: shared instruction (paraphrased) + DIFFERENT documents
+---
+INPUT A chars=20496:
+Please summarize the following in 3 bullets.
+
+Alpha Corp (NYSE: ALPH) reported fiscal Q2 results on Tuesday. Quarterly revenue
+reached $4.2 billion, up 12% year over year, driven primarily by cloud services
+growth in Europe and a multi-year…
+---
+INPUT B chars=20235:
+Summarise this document in three bullet points:
+
+The City of Leeds Cabinet approved a comprehensive zoning ordinance for the
+South Bank waterfront district after an eighteen-month consultation involving
+resident associations, transport plan…
+---
+REWRITE A: action=identity reason=rewrite_mode_off task=None
+REWRITE B: action=identity reason=rewrite_mode_off task=None
+---
+Warmup (unrelated ping) done — burns cold CUDA/engine start.
+---
+Doc A  ttft=0.389s total=3.300s
+  usage prompt=4541 completion=128 cached=None
+  LLM output (full):
+Here are 3 bullets summarizing the article:
+
+* Alpha Corp (NYSE: ALPH) reported Q2 results with revenue reaching $4.2 billion, a 12% year-over-year increase, driven by cloud services growth in Europe and a multi-year enterprise contract with Nordic Bank. Operating margin improved to 28%, up from 24% in the year-ago quarter.
+* The company highlighted three operational themes: cloud ARR grew 19% with net retention of 118% among the top 200 accounts, professional services revenue declined 3% as the company shifted toward partner-led deployments, and free cash flow was $910
+---
+Doc B  ttft=0.393s total=3.298s
+  usage prompt=4627 completion=128 cached=None
+  LLM output (full):
+The document appears to be a detailed report on a zoning ordinance for the South Bank waterfront district in Leeds. Here are three bullet points summarizing the main points:
+
+* The City of Leeds Cabinet has approved a comprehensive zoning ordinance for the South Bank waterfront district, which allows for mixed-use towers up to 18 storeys along the riverside corridor, with a hard cap of 14 storeys on streets backing onto Victorian terraces. Developers must deliver at least 20% affordable housing by unit count or an equivalent financial contribution.
+* The ordinance also includes conditions to preserve sightlines to the Parish Church spire and requires brick-and-stone facade
+---
+TTFT A/B ratio = 0.99x  (>1 means B faster)
+cached_tokens not reported by this vLLM build — rely on TTFT + rewrite logs.
+Read: at short/long scale, identical on/off A/B means perf unverified. At rag-scale, on should show lower B TTFT (or higher B cached) than off if APC helps.
+Proxy headers: X-Optimizer-Rewrite should match action above.
