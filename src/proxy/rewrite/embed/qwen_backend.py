@@ -94,8 +94,12 @@ class Qwen3EmbeddingBackend(EmbeddingBackend):
                 best_task = task
         if best_task == Task.UNKNOWN:
             return None
-        # Caller min_score, but never below QWEN_SCORE_FLOOR (Instruct scores run hot).
-        effective_min = max(min_score, QWEN_SCORE_FLOOR)
+        # Apply QWEN_SCORE_FLOOR for real gates. min_score<=0 skips the floor
+        # so diagnostics can read the raw nearest score.
+        if min_score <= 0.0:
+            effective_min = 0.0
+        else:
+            effective_min = max(min_score, QWEN_SCORE_FLOOR)
         if best_score < effective_min:
             return None
         return FallbackMatch(task=best_task, score=best_score, backend=self.name)
