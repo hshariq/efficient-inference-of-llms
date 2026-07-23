@@ -1,273 +1,208 @@
-# Phase 4 — Decisions & Progress Log
+# Phase 4 — Decisions & Results Log
 
 Running lab notebook for dissertation methodology / evaluation chapters.
-Update incrementally as Parts 0–4 land. Separate from the Phase 4 spec (`PHASE4_SEMANTIC.md`).
+Separate from the Phase 4 spec (`PHASE4_SEMANTIC.md`). Artefacts: `results/phase4/`.
+
+**Last updated:** 2026-07-23
 
 ---
 
-## Status distinction (read this first)
+## Executive summary (read this first)
 
-| Layer | State (as of 2026-07-22) |
+Phase 4 builds **schema tagging + optional embed fallback + block-aligned canonical
+prefix rewrite** in the Phase 2 proxy so vLLM APC can hit on
+**shared-instruction / different-document** traffic.
+
+### What was delivered
+
+| Area | Outcome |
+|------|---------|
+| **Implementation** | Parts 0–4 code complete (schema, Part 2 features, MiniLM + Qwen embed, ablation harness, proxy rewrite path). |
+| **Rules / Part 1–2** | Local pytest coverage (110+); summarize paraphrases 18/18; Part 2 fields metadata-only (catalogue still keyed by `Task`). |
+| **Alignment** | Chat-template–aware pad; dummy docs `QQQ_…` / `ZZZ_…` (fixed false LCP from shared `DOCUMENT_` stem). Model id locked: `meta-llama/Llama-3.1-8B-Instruct`. |
+| **4-way tagging ablation (Aire)** | n=113; MiniLM preferred cost/coverage trade-off; default embed still **`off`**. |
+| **Live APC smoke (Aire)** | Rewrite applies identical canonical system across paraphrased prompts + different docs; quality spot-check OK. Cold rewrite-on showed large TTFT A/B; warm on vs off ratios similar (see caveats). |
+
+### Defaults (unchanged)
+
+- `OPTIMIZER_REWRITE_MODE=on`
+- `OPTIMIZER_EMBEDDING_BACKEND=off` (enable `minilm` only when you want fallback)
+- Trimmer / TTL / Token Saving Ratio / full baselines → **not Phase 4**
+
+### Phase 4 status verdict
+
+**Core Phase 4 is complete** for the dissertation build: rewrite path works end-to-end;
+tagging ablations and embed VRAM measured; APC smoke verified mechanism + spot quality.
+
+**Optional polish left in Phase 4** (nice-to-have, not blocking Phase 5):
+see [What’s left](#whats-left--phase-4-vs-later) below.
+
+---
+
+## Status table
+
+| Layer | State (as of 2026-07-23) |
 |-------|---------------------------|
-| **Implementation** | Parts 0–4 **code complete** (schema, features, both embed backends, ablation harness, proxy wiring). |
-| **Verification (rules / Part 1–2)** | **Done locally** — regex/coverage/exclusion/confidence tests passed (110+). Tokenizer id reconciled to `Llama-3.1-8B-Instruct`. |
-| **Verification (rewrite + APC)** | **Done on Aire earlier** — `smoke_rewrite_apc.py` ~30× warm TTFT (rules rewrite path). |
-| **Verification (Part 3 embeddings)** | **Pending on Aire** — MiniLM / Qwen3-Embedding-0.6B never loaded against L40S + vLLM 0.90; fallback trigger not confirmed with real model output. |
-| **Verification (Part 4 full 4-way)** | **Partial** — harness ran locally with `--skip-embed` (conditions 1–2 only); conditions 3–4 + VRAM **not** measured. |
+| **Implementation** | Parts 0–4 **code complete**. |
+| **Verification (rules / Part 1–2)** | **Done** — local tests + Aire rules rows in ablation. |
+| **Verification (Part 3 embeddings)** | **Done on Aire** — MiniLM + Qwen3 load, fallback, VRAM. |
+| **Verification (Part 4 tagging ablation)** | **Done on Aire** — all four conditions; `results/phase4/ablation_*`. |
+| **Verification (rewrite + APC smoke)** | **Done on Aire** — mechanism + cold ~44× on-path; warm on/off caveat logged; `results/phase4/smoke_apc_*` when committed. |
+| **Token Saving Ratio / full eval** | **Phase 6** — not claimed from Phase 4 smoke. |
 
-For the methodology chapter: treat embeddings and the full ablation table as
-**“implemented, awaiting cluster verification”** — not as validated claims.
+---
+
+## Request path (one sentence)
+
+Client → `POST /v1/chat/completions` (`app.py`) → `rewrite_request` (tag rules → optional embed → bypass or catalogue system + align) → vLLM `:8000`.
 
 ---
 
 ## Part 0 — Setup (2026-07-19)
 
-Created this file as the standing decisions/progress log for richer schema tagging,
-negation/exclusion metadata, embedding fallbacks, and the 4-way ablation.
-
 **Standing design constraints (locked):**
 - Rules are the **default** classifier; embeddings are **fallback-only** on
   low-confidence / `UNKNOWN` task — never a primary classifier.
-- No LLM system-prompt classification; no hosted third-party APIs; local weights only
-  on the Aire node beside vLLM.
-- No open-ended label generation — every field uses a fixed enumerated set.
-- Negation / exclusion detection is **rule-based only** (embeddings are a known weak
-  spot for antonymic near-duplicates such as “with X” vs “without X”).
-- New multi-facet fields do **not** fork the canonical-prefix catalogue in this pass
-  (metadata / reporting / future priority weighting only).
+- No LLM system-prompt classification; no hosted third-party APIs; local weights only.
+- No open-ended label generation — fixed enumerated fields only.
+- Negation / exclusion is **rule-based only**.
+- Part 2 multi-facet fields do **not** fork the catalogue (Task-only selection).
 
 ---
 
-## Part 1 — Schema hygiene (in progress)
+## Part 1 — Schema hygiene
 
-### What changed and why
+**Regex:** expanded summarize patterns (incl. British `summarised` / `summary` / bullets).  
+**Tie-break:** explicit `TASK_PRIORITY` — summarize before extract (workload prior).  
+**Tokenizer:** same HF id as serving — `meta-llama/Llama-3.1-8B-Instruct`.  
+**Length buckets:** short &lt;128 / medium &lt;1024 / long ≥1024 (logging only).
 
-**Regex coverage.** The original summarize patterns used `summariz(?:e|e|ing)`, which
-duplicated `e` and missed common paraphrases (`summarized`, `summary`, `summarization`,
-and British `summarised`). Because the dissertation contribution specifically claims
-paraphrase resilience for shared-instruction APC, those gaps would inflate bypass rate
-and understate rewrite coverage. Patterns were expanded to verb/noun forms plus
-`summary` / `bullet points`; British forms mirrored.
+**Coverage:** 18/18 summarize paraphrases → `summarize_3_bullets` (`tests/test_tag_coverage.py`).
 
-**Tie-break.** Implicit `summarize_hits >= entity_hits` was replaced with an explicit
-`TASK_PRIORITY` tuple. **Decision:** summarization precedes entity extraction because
-the primary APC evaluation case is shared-instruction summarization traffic; the order
-is a deliberate workload prior, not an accident of comparison operators.
-
-**Serving model / tokenizer — reconciliation (confirmed in code, not assumed).**
-
-| Source | Model id |
-|--------|----------|
-| `src/engine/run_vllm.sh` `MODEL=` | `meta-llama/Llama-3.1-8B-Instruct` |
-| `src/proxy/rewrite/align.py` `MODEL_ID` | `meta-llama/Llama-3.1-8B-Instruct` |
-| `length_class` / `_token_len` | calls `align.get_tokenizer()` → same `MODEL_ID` |
-
-**Why Llama-3.1 (not Meta-Llama-3-8B-Instruct):** that is the model Aire smoke-tested
-and the string `run_vllm.sh` actually launches. Token buckets for logging must use the
-same tokenizer APC / chat-template alignment use, so schema imports that path rather
-than a second HF id. `Meta-Llama-3-8B-Instruct` is **not** used anywhere in the live
-stack.
-
-**Token bucket thresholds (decision):**
-| Class | Token count |
-|-------|-------------|
-| short | &lt; 128 |
-| medium | &lt; 1024 |
-| long | ≥ 1024 |
-
-These are logging/reporting buckets only — they do **not** select catalogue prefixes.
-Chosen as round powers-of-two-ish cut-points aligned with short instruction vs
-medium RAG vs long document regimes; not calibrated on a corpus yet.
-
-### Known limitation (negation) — accepted scope
-
-Part 2 adds rule-based **exclusion-term extraction** (e.g. “without BeautifulSoup”).
-That does **not** fully solve task-level negation (“Don’t summarize — extract
-entities”). Deeply nested, implied, or sarcasm-style negation may still be missed.
-Documented as a v1 keyword-tagger limitation for the dissertation limitations section;
-a regression test encodes the failure mode where a hit-count tie still prefers
-summarize despite “Don’t summarize…”.
-
-### Numbers (Part 1)
-
-- Paraphrase coverage asset (`tests/test_tag_coverage.py`): **18/18** summarize
-  paraphrases tagged `summarize_3_bullets` after regex fix (measured locally,
-  2026-07-19).
+**Limitation (accepted):** task-level negation (“Don’t summarize — extract”) only partially handled.
 
 ---
 
-## Part 2 — Richer schema fields + exclusion metadata (2026-07-19)
-
-### What was built
-
-Added three orthogonal fields on `SchemaTags`, each with its own regex list:
+## Part 2 — Richer schema + exclusion metadata
 
 | Field | Values | Role |
 |-------|--------|------|
-| `entity_focus` | `team` / `individual` / `unknown` | Who the request is about |
-| `action_type` | `analysis` / `retrieval` / `generation` / `unknown` | Verb class of the ask |
-| `excluded_terms` | tuple of captured phrases | Explicit “without / not using / excluding / avoid / don’t use|include …” |
+| `entity_focus` | team / individual / unknown | Metadata |
+| `action_type` | analysis / retrieval / generation / unknown | Metadata |
+| `excluded_terms` | captured phrases | Metadata; **never** bumps confidence |
 
-**Decision — catalogue not forked on these fields.** Prefix selection remains keyed by
-`Task` only. Splitting the catalogue by every feature combination would fragment
-traffic across more prefixes and can *reduce* APC hit rate; that trade-off needs a
-dedicated future ablation, not a default change now. Part 2 fields are logged for
-evaluation reporting and future priority/eviction weighting only.
-
-**Decision — exclusion is rule-based, never embedded.** “Scrape with BeautifulSoup”
-vs “without BeautifulSoup” are lexically near-identical and often close in embedding
-space despite opposite meaning. Exclusion cues therefore use regex capture only.
-
-**Correctness note:** rewrite still passes user content through `light_normalize`
-unchanged after attaching the canonical system prefix. An exclusion like “without
-BeautifulSoup” is never stripped — catching it in `excluded_terms` is for metadata/
-reporting, not generation correctness.
-
-**Limitation (accepted):** unusual exclusion phrasings outside the cue list are
-missed. Task-level negation (“Don’t summarize — extract”) remains only partially
-addressed (see Part 1).
-
-### Coverage numbers (Part 2) — evidence before Part 3
-
-Fixtures in `src/proxy/ablation/fixtures.py`; tests in `tests/test_schema_features.py`.
-
-| Asset | Count | Result (2026-07-19) |
-|-------|------:|---------------------|
-| `entity_focus` TEAM paraphrases | 16 | all → `team` |
-| `entity_focus` INDIVIDUAL paraphrases | 16 | all → `individual` |
-| `action_type` ANALYSIS | 16 | all → `analysis` |
-| `action_type` RETRIEVAL | 16 | all → `retrieval` |
-| `action_type` GENERATION | 16 | all → `generation` |
-| Exclusion pairs (with vs without cue) | 8 | same `task`; term captured |
-| Summarize paraphrases (Part 1 asset) | 18 | all → `summarize_3_bullets` |
-
-Combined pytest: **`tests/test_schema_features.py` + `tests/test_tag_coverage.py` → 110 passed**.
-
-Example exclusion pair (generation task unchanged):
-- `Write web scraping code for this site.`
-- `Write web scraping code for this site without BeautifulSoup.`
-  → same task tag; `BeautifulSoup` in `excluded_terms`.
-
-**Honest limit of this evidence:** 100% on this suite is a **weaker signal than it
-looks**. The same authors wrote both the regex patterns and the test phrasings, so a
-perfect score mainly confirms **internal consistency** of the authored asset — not that
-the tagger **generalizes to unseen / uncurated user phrasing**. The dissertation claim
-that needs external evidence is generalization (e.g. ShareGPT/LMSYS-style prompts, or
-prompts written by someone who has not seen `_SUMMARIZE_PATTERNS`). That is deferred to
-**Phase 6 evaluation**, not claimed from Part 2 coverage alone.
-
-**Part 3 was therefore built after this coverage evidence**, not on an untested assumption
-that rules alone were adequate for in-schema paraphrases. (Bypass on out-of-catalogue
-prompts such as bare “write code…” remains expected — that is what embed fallback targets.)
-
-### Confidence coupling check — `excluded_terms`
-
-**Confirmed in `tag_user_text`:** only `entity_focus` / `action_type` (when not UNKNOWN)
-add +0.05 to confidence; `excluded_terms` is assigned after scoring and **never** read
-when updating `conf`. Docstring on `extract_excluded_terms` states the same. Regression:
-`test_excluded_terms_do_not_affect_confidence` in `tests/test_schema_features.py`.
+**Decision:** catalogue not forked on these fields.  
+**Coverage:** Part 2 fixtures 100% on authored set; pytest 110+ with tag coverage.  
+**Honest limit:** authored consistency ≠ uncurated generalization → Phase 6.
 
 ---
 
-## Part 3 — Embedding fallbacks (2026-07-19)
+## Part 3 — Embedding fallbacks
 
-### What was built (implementation only — not yet verified on Aire)
+| Backend | Model | Gate |
+|---------|-------|------|
+| MiniLM | `sentence-transformers/all-MiniLM-L6-v2` | UNKNOWN or conf &lt; threshold |
+| Qwen3 | `Qwen/Qwen3-Embedding-0.6B` | Same |
 
-Two swappable local backends under `src/proxy/rewrite/embed/`, selected by
-`OPTIMIZER_EMBEDDING_BACKEND=off|minilm|qwen3` (also via ablation
-`TagConfig.for_ablation`):
+Exemplars + max cosine; never used for exclusion.  
+**Default backend: `off`.** Prefer **MiniLM** if enabling embed.
 
-| Backend | Model id | When used |
-|---------|----------|-----------|
-| A MiniLM | `sentence-transformers/all-MiniLM-L6-v2` | Rules return UNKNOWN or conf &lt; threshold |
-| B Qwen3 | `Qwen/Qwen3-Embedding-0.6B` (confirmed HF card) | Same gate |
-
-Matching uses **multiple exemplars per Task** (`exemplars.py`) and **max cosine
-similarity** across exemplars — never a single fragile anchor, never open-ended
-labels, never used for exclusion/negation.
-
-**Decision — default backend is `off`.** Production proxy stays rules-first; embed
-is opt-in for ablation / low-coverage rescue.
-
-**Decision — alignment dummies must not share a user-token prefix.** Using
-`DOCUMENT_A_…` vs `DOCUMENT_B_…` made LCP include shared `DOCUMENT_` tokens, so
-padding hit a block boundary that real different-doc pairs (e.g. Alpha… vs Beta…)
-missed (LCP 79 ̸≡ 0 mod 16). Dummies are now `QQQ_…` vs `ZZZ_…`.
-
-### What is still unverified (do not claim in results yet)
-
-1. **Load / VRAM:** Qwen3-Embedding-0.6B (and MiniLM) on the same L40S as vLLM
-   `--gpu-memory-utilization 0.90` — OOM or contention unknown; may need
-   `OPTIMIZER_EMBED_DEVICE=cpu`.
-2. **Fallback trigger:** that UNKNOWN / low-confidence paths actually call the
-   backend and change `task` with **real** embedding scores (not mocked).
-3. **Quality:** whether embed rescue reduces bypass rate on the shared request set
-   without mis-tagging.
-
-Local Windows env had no usable torch/CUDA for these models; HF-gated serving
-tokenizer was also unavailable without `HF_TOKEN` (same class of skip as earlier
-alignment tests). **Coded ≠ validated.**
-
-Aire verification command:
-
-```bash
-pip install sentence-transformers
-python -m src.proxy.ablation.run_tag_ablation --write-log
-```
+**Alignment fix:** pad dummies `QQQ_…` vs `ZZZ_…` (not `DOCUMENT_A/B`).
 
 ---
 
-## Part 4 — Ablation harness
+## Part 4 — Tagging ablation (Aire gpu013, 2026-07-22)
 
-Harness: `python -m src.proxy.ablation.run_tag_ablation`
-Conditions: `rules_only` | `rules_plus_features` | `embed_minilm` | `embed_qwen3`.
-Reports bypass rate, **mean rule_ms**, **mean embed_ms** (separate), embed-used rate,
-VRAM after backend load. Appends to this log with `--write-log`.
+Harness: `python -m src.proxy.ablation.run_tag_ablation`  
+Shared set **n=113** (no vLLM). Logs: `results/phase4/ablation_*.{txt,jsonl}`.
 
-Warm TTFT / Token Saving Ratio intentionally deferred to live
-`smoke_rewrite_apc.py` / Phase 6 (tagging ablation isolates classifier behaviour).
+| Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used | VRAM |
+|-----------|-------------|--------------|---------------|------------|------|
+| `rules_only` | 20.4% | (rules) | 0.00 | 0.0% | n/a |
+| `rules_plus_features` | 20.4% | ~6–27 | 0.00 | 0.0% | n/a |
+| `embed_minilm` | **10.6%** | 6.59 | 0.76 | 9.7% | **95 MiB** |
+| `embed_qwen3` | **0.0%** | 5.76 | 4.27 | 20.4% | **2281 MiB** |
 
-### Has the harness actually been run?
+**Decision:** MiniLM = preferred opt-in fallback; Qwen = max coverage / expensive; default stays `off`.
 
-**Yes — once locally with `--skip-embed` (2026-07-19):** conditions 1–2 only, n=113
-shared prompts. Confirmed comparable output structure (same table columns:
-bypass / rule_ms / embed_ms / embed-used / VRAM). Numbers below are that dry-run;
-`embed_ms` stayed 0 because backends were skipped.
+---
 
-**Not yet run:** full four-condition Aire pass with real MiniLM + Qwen loads.
-Until that lands, Part 4 is “harness smoke-tested for schema; embed rows pending.”
+## Live APC smoke (Aire, 2026-07-23)
 
-Local dry-run (`--skip-embed`) results follow; re-run on Aire for embed rows.
+Script: `PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py`  
+(proxy `:9000`, vLLM Llama-3.1-8B-Instruct + APC).  
+Case: paraphrased summarize instructions + **different** documents.
 
-## Part 4 — Ablation results (2026-07-19 16:37 UTC)
+### Cold rewrite-on (gpu012, first clean on-path)
 
-Shared request set = Part 2 coverage assets + summarize paraphrases (n=113). Latencies are **mean ms**, rule vs embed reported separately. VRAM is process `torch.cuda.memory_allocated` after backend load (None = CPU / unavailable).
+| | TTFT | Notes |
+|--|------|--------|
+| Doc A | ~1.884s | Cold-ish |
+| Doc B | ~0.043s | Warm |
+| **A/B** | **~43.8×** | Same canonical system; clean bullets (no preamble) |
 
-| Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used rate | VRAM |
-|-----------|-------------|--------------|---------------|-----------------|------|
-| `rules_only` | 20.4% | 236.25 | 0.00 | 0.0% | n/a |
-| `rules_plus_features` | 20.4% | 206.94 | 0.00 | 0.0% | n/a |
+### Warm control pair (gpu018, after unrelated warmup)
 
-**Notes:** Warm TTFT / Token Saving Ratio need live vLLM+APC (`smoke_rewrite_apc.py` / Phase 6) and are not duplicated here — tagging ablation isolates classifier behaviour only.
+| Mode | A TTFT | B TTFT | A/B | Output style |
+|------|--------|--------|-----|--------------|
+| `REWRITE_MODE=off` | ~0.391s | ~0.043s | ~9.2× | Preamble (“Here's a summary…”) |
+| `REWRITE_MODE=on` | ~0.414s | ~0.043s | ~9.6× | Catalogue bullets only |
 
-### Decisions / caveats from this run
+**Interpretation (honest):**
+- **Mechanism verified:** on applies identical block-aligned catalogue system; off does not (preamble vs bullets).
+- **Ideal TTFT story** (off ≈1×, on ≫1× after warmup) is **not** cleanly shown by this tiny warm smoke — B hits a ~40ms floor either way; off after cold vLLM restart was also confounded by engine warmup (~36×).
+- **Token Saving Ratio** and robust APC quantification → **Phase 6**.
+- Smoke `LLM output[:120]` truncates display; third bullet may exist beyond the cut.
 
-- Embeddings used only when rules return UNKNOWN or confidence below threshold.
-- Qwen3-Embedding-0.6B VRAM must be read against vLLM `--gpu-memory-utilization 0.90` on L40S; if contention appears, set `OPTIMIZER_EMBED_DEVICE=cpu` for the proxy process.
-- Catalogue still keyed by Task only; Part 2 fields remain metadata.
+Artefacts (when present): `results/phase4/smoke_apc_rewrite_off.txt`, `smoke_apc_rewrite_on.txt`.
 
-## Part 4 — Ablation results (2026-07-22 19:06 UTC)
+---
 
-Shared request set = Part 2 coverage assets + summarize paraphrases (n=113). Latencies are **mean ms**, rule vs embed reported separately. VRAM is process `torch.cuda.memory_allocated` after backend load (None = CPU / unavailable).
+## Locked decisions (quick reference)
 
-| Condition | Bypass rate | Mean rule_ms | Mean embed_ms | Embed-used rate | VRAM |
-|-----------|-------------|--------------|---------------|-----------------|------|
-| `rules_plus_features` | 20.4% | 26.84 | 0.00 | 0.0% | n/a |
+1. Rules first; embed fallback-only; default embed **`off`**.  
+2. If embed on → prefer **MiniLM** over Qwen for live proxy.  
+3. Catalogue keyed by **Task** only (two prefixes: summarize / extract).  
+4. Exclusion = rules only; does not affect confidence.  
+5. Align on **rendered** chat-template span; pad trailer policy in `align.py`.  
+6. Low confidence / UNKNOWN → **bypass** (identity body to vLLM).  
+7. Trimmer out of scope; light normalize only.
 
-**Notes:** Warm TTFT / Token Saving Ratio need live vLLM+APC (`smoke_rewrite_apc.py` / Phase 6) and are not duplicated here — tagging ablation isolates classifier behaviour only.
+---
 
-### Decisions / caveats from this run
+## Artefacts checklist
 
-- Embeddings used only when rules return UNKNOWN or confidence below threshold.
-- Qwen3-Embedding-0.6B VRAM must be read against vLLM `--gpu-memory-utilization 0.90` on L40S; if contention appears, set `OPTIMIZER_EMBED_DEVICE=cpu` for the proxy process.
-- Catalogue still keyed by Task only; Part 2 fields remain metadata.
+| Path | Contents |
+|------|----------|
+| `results/phase4/ablation_rules_only.txt` | Rules-only tee |
+| `results/phase4/ablation_rules_plus_features.{txt,jsonl}` | Part 2 features |
+| `results/phase4/ablation_embed_minilm.{txt,jsonl}` | MiniLM fallback |
+| `results/phase4/ablation_embed_qwen3.{txt,jsonl}` | Qwen fallback |
+| `results/phase4/smoke_apc_rewrite_*.txt` | Live TTFT smokes (commit from Aire if not yet) |
+| `docs/PHASE4_DECISIONS_LOG.md` | This file |
+| `PHASE4_SEMANTIC.md` | Spec / design |
+
+---
+
+## What’s left — Phase 4 vs later
+
+### Still optional inside Phase 4 (not blocking)
+
+- [x] Commit smoke tee files from Aire (user reported done 2026-07-23).
+- [ ] Stronger APC smoke: `smoke_rewrite_apc.py --long --warmup` on vs off (see script); tee to `results/phase4/smoke_apc_long_{on,off}.txt`.
+- [ ] Optional: live proxy with `OPTIMIZER_EMBEDDING_BACKEND=minilm` on a bypass-prone prompt (ablation already covers tagging).
+
+### Explicitly **not** Phase 4 (do next phases)
+
+| Item | Phase |
+|------|-------|
+| TTL / starvation escape | **5** |
+| Token Saving Ratio, cache hit rate, full workload | **6** |
+| Uncurated / ShareGPT-style generalization | **6** |
+| Baselines (e.g. GPTCache), multi-seed tables | **6** |
+| Trimmer | Future work |
+| Catalogue fork on Part 2 facets | Future ablation |
+
+### Suggested next move after closing Phase 4
+
+Start **Phase 5 (TTL)** when ready; keep proxy defaults as above for any further APC work.

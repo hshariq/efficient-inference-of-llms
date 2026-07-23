@@ -1,37 +1,43 @@
-# Phase 4 ablation results
+# Phase 4 results
 
-Tracked copies of tagging ablation runs (113 paraphrased prompts, no vLLM).
+Tracked experiment artefacts for Phase 4 (tagging ablation + APC smoke).
+Narrative summary and decisions: **`docs/PHASE4_DECISIONS_LOG.md`**.
 
-Ephemeral Aire scratch stays in `logs/` (gitignored). After a run, copy artefacts here and commit.
+## Tagging ablation (n=113, no vLLM)
 
-## Expected files
+| File | Condition |
+|------|-----------|
+| `ablation_rules_only.txt` | rules only |
+| `ablation_rules_plus_features.{txt,jsonl}` | + Part 2 features |
+| `ablation_embed_minilm.{txt,jsonl}` | + MiniLM fallback |
+| `ablation_embed_qwen3.{txt,jsonl}` | + Qwen3-Embedding-0.6B |
 
-| File | Condition | Notes |
-|------|-----------|--------|
-| `ablation_rules_only.txt` | `rules_only` | Full tee log (INPUT/OUTPUT/METRICS) |
-| `ablation_rules_only.jsonl` | `rules_only` | One JSON object per prompt |
-| `ablation_rules_plus_features.txt` | `rules_plus_features` | Full tee log |
-| `ablation_rules_plus_features.jsonl` | `rules_plus_features` | Per-prompt JSON |
-| `ablation_embed_minilm.*` | `embed_minilm` | After MiniLM verify on Aire |
-| `ablation_embed_qwen3.*` | `embed_qwen3` | After Qwen verify on Aire |
+Headline: rules bypass ~20.4%; MiniLM ~10.6% @ ~95 MiB; Qwen ~0% @ ~2.2 GiB.
+Default proxy embed stays **`off`**; MiniLM preferred if enabled.
 
-Headline numbers also live in `docs/PHASE4_DECISIONS_LOG.md`.
+## APC smoke (vLLM + proxy)
 
-## Copy from Aire after a run
+| File | Mode |
+|------|------|
+| `smoke_apc_rewrite_off.txt` | `OPTIMIZER_REWRITE_MODE=off` (after warmup) |
+| `smoke_apc_rewrite_on.txt` | `OPTIMIZER_REWRITE_MODE=on` (after warmup) |
 
-```bash
-mkdir -p results/phase4
-cp logs/ablation_rules_only.txt results/phase4/
-# if you also wrote jsonl:
-cp logs/ablation_rules_only.jsonl results/phase4/ 2>/dev/null || true
-```
-
-Prefer writing straight into this folder:
+Also log cold rewrite-on ~44× TTFT A/B from earlier gpu012 run in the decisions log
+(may predate these tee files).
 
 ```bash
-python -m src.proxy.ablation.run_tag_ablation \
-  --conditions rules_only \
-  --jsonl results/phase4/ablation_rules_only.jsonl \
-  --write-log results/phase4/ablation_rules_only.txt \
-  --quiet
+# Stronger smoke (longer docs + warmup + usage/cached if vLLM reports them)
+# 1) proxy with REWRITE=off → tee off file; 2) restart proxy REWRITE=on → tee on file
+export OPTIMIZER_REWRITE_MODE=off   # must match proxy process
+PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --long --warmup \
+  2>&1 | tee results/phase4/smoke_apc_long_off.txt
+
+export OPTIMIZER_REWRITE_MODE=on
+PYTHONPATH=. python src/proxy/smoke_rewrite_apc.py --long --warmup \
+  2>&1 | tee results/phase4/smoke_apc_long_on.txt
 ```
+
+## Not stored here
+
+- Token Saving Ratio / full eval → Phase 6  
+- TTL → Phase 5  

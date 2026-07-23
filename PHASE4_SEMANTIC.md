@@ -283,6 +283,8 @@ src/proxy/
 - [x] 4b schema + catalogue + **chat-template–aware** block alignment unit tests
 - [x] Model id locked: `meta-llama/Llama-3.1-8B-Instruct` (no Llama-3 mix-ups)
 - [x] 4c bypass path (low confidence / unknown)
-- [ ] 4e shared-instruction / different-data pairs smoke on Aire (APC TTFT)
+- [x] 4e shared-instruction / different-data pairs smoke on Aire (APC TTFT) — see `docs/PHASE4_DECISIONS_LOG.md` (mechanism verified; warm on/off ratio caveat; TSR → Phase 6)
 - [x] Light-normalization rules documented and Trimmer-creep absent in code review
-- [ ] Optional 4d only after 4b proven
+- [x] Optional 4d (MiniLM / Qwen embed fallback) implemented + Aire ablation; default remains `off`
+
+**Phase 4 core: complete.** Results summary: `docs/PHASE4_DECISIONS_LOG.md`. Artefacts: `results/phase4/`.
