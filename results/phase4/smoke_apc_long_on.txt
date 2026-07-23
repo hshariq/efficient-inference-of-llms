@@ -1,0 +1,46 @@
+base_url=http://localhost:9000/v1
+smoke_shell OPTIMIZER_REWRITE_MODE='on' (must match proxy process)
+docs=long  warmup=True
+Case: shared instruction (paraphrased) + DIFFERENT documents
+---
+INPUT A chars=1686:
+Please summarize the following in 3 bullets.
+
+Alpha Corp (NYSE: ALPH) reported fiscal Q2 results on Tuesday. Quarterly revenue
+reached $4.2 billion, up 12% year over year, driven primarily by cloud services
+growth in Europe and a multi-year…
+---
+INPUT B chars=1826:
+Summarise this document in three bullet points:
+
+The City of Leeds Cabinet approved a comprehensive zoning ordinance for the
+South Bank waterfront district after an eighteen-month consultation involving
+resident associations, transport plan…
+---
+REWRITE A: action=rewrite reason=canonical_prefix task=summarize_3_bullets
+  system[:160]='You are a careful analyst. When given a document, respond with exactly three concise bullet points that capture the main ideas. Do not add a preamble or closing'
+  user[:160]='Please summarize the following in 3 bullets. Alpha Corp (NYSE: ALPH) reported fiscal Q2 results on Tuesday. Quarterly revenue reached $4.2 billion, up 12% year '
+REWRITE B: action=rewrite reason=canonical_prefix task=summarize_3_bullets
+  system[:160]='You are a careful analyst. When given a document, respond with exactly three concise bullet points that capture the main ideas. Do not add a preamble or closing'
+  user[:160]='Summarise this document in three bullet points: The City of Leeds Cabinet approved a comprehensive zoning ordinance for the South Bank waterfront district after'
+---
+Warmup (unrelated ping) done — burns cold CUDA/engine start.
+---
+Doc A  ttft=0.055s total=2.643s
+  usage prompt=435 completion=120 cached=None
+  LLM output (full):
+• Alpha Corp reported Q2 revenue of $4.2 billion, up 12% year over year, driven by cloud services growth in Europe and a multi-year contract with Nordic Bank.
+• Operating margin improved to 28%, with cloud ARR growing 19% and net retention of 118% among top 200 accounts, while professional services revenue declined 3%.
+• The company guided Q3 revenue of $4.3–4.4 billion and operating margin of 27–29%, with a one-time $45 million restructuring charge and ongoing antitrust inquiries related to cloud credits.
+---
+Doc B  ttft=0.052s total=2.120s
+  usage prompt=424 completion=96 cached=None
+  LLM output (full):
+• The City of Leeds Cabinet approved a zoning ordinance for the South Bank waterfront district, allowing mixed-use towers up to 18 storeys and requiring 20% affordable housing.
+• Developers must fund upgrades to pedestrian bridges, contribute to a mobility hub, and adhere to heritage conditions preserving sightlines and facade materials.
+• The ordinance includes a Community Infrastructure Levy schedule for schools and GP capacity, with a monitoring report due every 24 months to track housing delivery and flood resilience works.
+---
+TTFT A/B ratio = 1.05x  (>1 means B faster)
+cached_tokens not reported by this vLLM build — rely on TTFT + rewrite logs.
+Ideal: rewrite-off → similar A/B + low B cached; rewrite-on → high B cached.
+Proxy headers: X-Optimizer-Rewrite should match action above.

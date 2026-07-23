@@ -1,0 +1,46 @@
+base_url=http://localhost:9000/v1
+smoke_shell OPTIMIZER_REWRITE_MODE='off' (must match proxy process)
+docs=long  warmup=True
+Case: shared instruction (paraphrased) + DIFFERENT documents
+---
+INPUT A chars=1686:
+Please summarize the following in 3 bullets.
+
+Alpha Corp (NYSE: ALPH) reported fiscal Q2 results on Tuesday. Quarterly revenue
+reached $4.2 billion, up 12% year over year, driven primarily by cloud services
+growth in Europe and a multi-year…
+---
+INPUT B chars=1826:
+Summarise this document in three bullet points:
+
+The City of Leeds Cabinet approved a comprehensive zoning ordinance for the
+South Bank waterfront district after an eighteen-month consultation involving
+resident associations, transport plan…
+---
+REWRITE A: action=identity reason=rewrite_mode_off task=None
+REWRITE B: action=identity reason=rewrite_mode_off task=None
+---
+Warmup (unrelated ping) done — burns cold CUDA/engine start.
+---
+Doc A  ttft=0.053s total=2.814s
+  usage prompt=405 completion=128 cached=None
+  LLM output (full):
+Here are three bullets summarizing the Alpha Corp Q2 results:
+
+• Alpha Corp reported a 12% year-over-year revenue growth to $4.2 billion in Q2, driven by cloud services growth in Europe and a multi-year contract with Nordic Bank, with operating margin improving to 28%.
+• The company highlighted three operational themes: 19% growth in cloud ARR, a 3% decline in professional services revenue due to a shift towards partner-led deployments, and $910 million in free cash flow after capex of $220 million.
+• Alpha Corp provided Q3 guidance of $4.3-4.4 billion in
+---
+Doc B  ttft=0.050s total=2.816s
+  usage prompt=395 completion=128 cached=None
+  LLM output (full):
+Here are three bullet points summarizing the document:
+
+• The City of Leeds Cabinet has approved a comprehensive zoning ordinance for the South Bank waterfront district, allowing for mixed-use towers up to 18 storeys along the riverside and 14 storeys on streets backing onto Victorian terraces.
+• The ordinance requires developers to deliver at least 20% affordable housing by unit count or make an equivalent financial contribution, and to fund upgrades to pedestrian bridges and a mobility hub with e-bike parking and bus layover bays.
+• The first phase of construction is expected to begin in 2027, contingent on Environment Agency sign-off and National Grid
+---
+TTFT A/B ratio = 1.05x  (>1 means B faster)
+cached_tokens not reported by this vLLM build — rely on TTFT + rewrite logs.
+Ideal: rewrite-off → similar A/B + low B cached; rewrite-on → high B cached.
+Proxy headers: X-Optimizer-Rewrite should match action above.
