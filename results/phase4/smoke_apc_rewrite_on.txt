@@ -1,0 +1,28 @@
+base_url=http://localhost:9000/v1
+Case: shared instruction (paraphrased) + DIFFERENT documents
+---
+INPUT A (client → proxy):
+Please summarize the following in 3 bullets.
+
+Alpha Corp reported quarterly revenue of $4.2B, up 12% year over year, driven by cloud services in Europe and a new enterprise contract with Nordic Bank. Operating margin improved to 28%.
+---
+INPUT B (client → proxy):
+Summarise this document in three bullet points:
+
+The City of Leeds approved a zoning ordinance for the waterfront district, allowing mixed-use towers up to 18 storeys and requiring 20% affordable housing units. Construction is expected to begin in 2027.
+---
+REWRITE A: action=rewrite reason=canonical_prefix task=summarize_3_bullets
+  system[:160]='You are a careful analyst. When given a document, respond with exactly three concise bullet points that capture the main ideas. Do not add a preamble or closing'
+  user[:160]='Please summarize the following in 3 bullets. Alpha Corp reported quarterly revenue of $4.2B, up 12% year over year, driven by cloud services in Europe and a new'
+REWRITE B: action=rewrite reason=canonical_prefix task=summarize_3_bullets
+  system[:160]='You are a careful analyst. When given a document, respond with exactly three concise bullet points that capture the main ideas. Do not add a preamble or closing'
+  user[:160]='Summarise this document in three bullet points: The City of Leeds approved a zoning ordinance for the waterfront district, allowing mixed-use towers up to 18 st'
+---
+Doc A (cold-ish)  ttft=0.393s total=1.955s
+  LLM output[:120]="Here's a summary in 3 bullets:\n\n• Alpha Corp reported a 12% year-over-year increase in quarterly revenue, reaching $4.2B"
+Doc B (warm hope) ttft=0.039s total=1.496s
+  LLM output[:120]='Here are three bullet points summarizing the document:\n\n• The City of Leeds has approved a zoning ordinance for its wate'
+---
+TTFT A/B ratio = 10.00x  ( >1 means B was faster — expected under APC)
+Check proxy logs / response headers: X-Optimizer-Rewrite: rewrite
+Compare with OPTIMIZER_REWRITE_MODE=off restart if needed.

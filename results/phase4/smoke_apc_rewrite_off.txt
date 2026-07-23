@@ -1,0 +1,24 @@
+base_url=http://localhost:9000/v1
+Case: shared instruction (paraphrased) + DIFFERENT documents
+---
+INPUT A (client → proxy):
+Please summarize the following in 3 bullets.
+
+Alpha Corp reported quarterly revenue of $4.2B, up 12% year over year, driven by cloud services in Europe and a new enterprise contract with Nordic Bank. Operating margin improved to 28%.
+---
+INPUT B (client → proxy):
+Summarise this document in three bullet points:
+
+The City of Leeds approved a zoning ordinance for the waterfront district, allowing mixed-use towers up to 18 storeys and requiring 20% affordable housing units. Construction is expected to begin in 2027.
+---
+REWRITE A: action=identity reason=rewrite_mode_off task=None
+REWRITE B: action=identity reason=rewrite_mode_off task=None
+---
+Doc A (cold-ish)  ttft=0.391s total=1.932s
+  LLM output[:120]="Here's a summary in 3 bullets:\n\n• Alpha Corp reported a 12% year-over-year increase in quarterly revenue to $4.2B.\n• The"
+Doc B (warm hope) ttft=0.043s total=1.499s
+  LLM output[:120]='Here are three bullet points summarizing the document:\n\n• The City of Leeds has approved a zoning ordinance for its wate'
+---
+TTFT A/B ratio = 9.16x  ( >1 means B was faster — expected under APC)
+Check proxy logs / response headers: X-Optimizer-Rewrite: rewrite
+Compare with OPTIMIZER_REWRITE_MODE=off restart if needed.
