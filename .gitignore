@@ -67,3 +67,6 @@ data/raw/
 data/cache/
 tmp/
 temp/
+
+# PDFs (thesis drafts / progress copies — keep local)
+*.pdf

@@ -51,11 +51,22 @@ Baselines: hold off vs hold on (e.g. 30–50 ms window).
 
 ---
 
+## What hold is / is not
+
+- **Is:** co-arrival helper + fairness (per-task hold + max TTL escape).
+- **Is not:** a TTFT speed claim. Phase 4 showed APC TTFT≈1× at current short
+  catalogue prefixes; any hold benefit is Phase 6 Token Saving Ratio / cached tokens,
+  traded against added wait_ms.
+
+---
+
 ## Done checklist
 
 - [x] Spec + decisions log
 - [x] Group-level micro-hold + TTL escape (`src/proxy/ttl/`)
 - [x] Wire `app.py` / `start_proxy.sh` / headers
-- [x] Unit tests
-- [x] `smoke_ttl.py`
-- [ ] Aire smoke with `OPTIMIZER_TTL_MODE=on`
+- [x] Unit tests (incl. simultaneous max_batch + cross-task independence)
+- [x] `smoke_ttl.py` (hold, cross-task starvation/independence, optional max_batch, asserts)
+- [ ] Aire smoke hold **on** (lonely + co-arrive + off-task independence; run 2–3× for jitter)
+- [ ] Aire smoke optional `--max-batch-peers`
+- [ ] Aire control hold **off** (`--expect-hold-off`)
