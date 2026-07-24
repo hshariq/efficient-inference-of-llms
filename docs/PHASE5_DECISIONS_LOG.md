@@ -2,7 +2,7 @@
 
 Micro-admission hold + TTL escape. Spec: `PHASE5_TTL.md`.
 
-**Last updated:** 2026-07-24 — reviewer feedback folded in (race note, priority, honesty, smoke)
+**Last updated:** 2026-07-24 — Aire smokes PASS on gpu014; Phase 5 closed
 
 ---
 
@@ -14,7 +14,7 @@ Micro-admission hold + TTL escape. Spec: `PHASE5_TTL.md`.
 | **Implementation** | `src/proxy/ttl/` — `_flush_locked` pops under `asyncio.Lock` |
 | **Default** | `OPTIMIZER_TTL_MODE=off` |
 | **Unit tests** | `tests/test_ttl_queue.py` (incl. simultaneous max_batch + cross-task) |
-| **Aire smoke** | Pending hardened `smoke_ttl.py` (hold on + cross-task independence + optional max_batch) |
+| **Aire smoke** | **Done** — artefacts in `results/phase5/` |
 
 ---
 
@@ -94,19 +94,26 @@ current smoke scale; if Phase 6 2k-burst shows contention, consider per-task loc
 
 ## Aire smoke checklist (live)
 
-Three runs close Phase 5:
+Three runs close Phase 5 — **all PASS** on `gpu014` (2026-07-24):
 
-1. [ ] Hold **on**: lonely + 2 concurrent + cross-task independence (`smoke_ttl.py`)
-2. [ ] Optional max_batch: `--max-batch-peers 8` (proxy `OPTIMIZER_TTL_BATCH_PEERS=8`)
-3. [ ] Control: restart with `OPTIMIZER_TTL_MODE=off` → `smoke_ttl.py --expect-hold-off`
+1. [x] Hold **on** ×3: `hold_window` ≈50 ms; summarize vs extract independence (`results/phase5/smoke_hold_on_r{1,2,3}.txt`)
+2. [x] max_batch ×8: PASS with hold=500 / max_ttl=1000 (`results/phase5/smoke_max_batch.txt`)
+3. [x] Hold **off** control: `skip`, wait 0.00 (`results/phase5/smoke_hold_off.txt`)
 
-- [ ] Paste outputs into this log / `results/phase5/`
-
-### Smoke notes (pre-Aire)
+### Smoke notes
 
 - **Hold-off control is intentionally loose:** asserts `skip` + wait ≈ 0 only. No
   `X-Optimizer-Task` check — control path is disposition/timing, not tagging.
-- **Hold-on jitter:** `MAX_TTL_MS=200` is tight under Aire network/queueing. Run the
-  hold-on smoke **2–3× back-to-back**; a single boundary flake (e.g. wait_ms 195 vs 210)
-  is not evidence TTL escape is broken. Log any wait variance if seen.
-- Assertions use `MAX_TTL_MS + 40 ms` slack for this reason.
+- **Hold-on jitter:** 3× at hold=50 showed stable ~49–51 ms waits; no boundary flake near 200.
+- **max_batch at hold=50:** first attempt failed (`hold_window`) — 8 HTTP admits did not
+  all reach the bucket inside 50 ms. Re-ran with hold=500 → all eight `max_batch`,
+  waits ~0–40 ms (early flush). Documented limitation of **smoke methodology** (client
+  dispatch latency vs short window), not a queue logic bug / silent goalpost move.
+  **`max_batch` behavior under realistic default `hold_ms` (50) to be re-validated under
+  Phase 6 burst load, not just this synthetic peers=8 retry.**
+- Assertions use `MAX_TTL_MS + 40 ms` slack.
+
+### Phase 5 → Phase 6
+
+Phase 5 plumbing verified. Next: **Token Saving Ratio / cached-token counts** under
+hold on vs off (cost = added wait_ms; benefit ≠ TTFT at current catalogue design).

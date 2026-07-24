@@ -1,0 +1,15 @@
+base_url=http://localhost:9000/v1
+expect hold_ms≈50.0 max_ttl_ms=200.0 hold_off=False
+--- lonely request (expect hold_window, wait≈hold_ms) ---
+  TTL='hold_window' wait_ms='50.21' task='summarize_3_bullets' wall_s=0.950
+--- two concurrent same-task (expect hold_window together) ---
+  req1: TTL='hold_window' wait_ms='50.57' task='summarize_3_bullets' wall_s=1.000
+  req2: TTL='hold_window' wait_ms='50.47' task='summarize_3_bullets' wall_s=0.979
+--- starvation / independence: lonely off-task during same-task hold ---
+  batch req1: TTL='hold_window' wait_ms='49.81' task='summarize_3_bullets' wall_s=0.995
+  batch req2: TTL='hold_window' wait_ms='49.80' task='summarize_3_bullets' wall_s=1.103
+  lonely (different task): TTL='hold_window' wait_ms='50.29' task='extract_entities' wall_s=0.737
+  ok: off-task wait_ms=50.29 <= MAX_TTL_MS+slack (200.0+40)
+--- openai client ok ---
+smoke_ttl: PASS
+# Aire gpu014 2026-07-24 run 3/3 (hold 50/200/peers=8)

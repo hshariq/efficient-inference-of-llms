@@ -1,0 +1,8 @@
+# Proxy restarted with OPTIMIZER_TTL_MODE=off
+base_url=http://localhost:9000/v1
+expect hold_ms≈50.0 max_ttl_ms=200.0 hold_off=True
+--- control: lonely (expect skip, wait≈0) ---
+  TTL='skip' wait_ms='0.00' task='summarize_3_bullets' wall_s=0.903
+--- openai client ok ---
+smoke_ttl: PASS
+# Aire gpu014 2026-07-24

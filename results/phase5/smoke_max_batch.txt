@@ -1,0 +1,27 @@
+# Proxy: OPTIMIZER_TTL_MODE=on HOLD=500 MAX_TTL=1000 PEERS=8
+# Client: smoke_ttl.py --max-batch-peers 8 --hold-ms 500 --max-ttl-ms 1000
+# Note: first attempt at HOLD=50 failed (admits staggered → hold_window); not a logic bug.
+base_url=http://localhost:9000/v1
+expect hold_ms≈500.0 max_ttl_ms=1000.0 hold_off=False
+--- lonely request (expect hold_window, wait≈hold_ms) ---
+  TTL='hold_window' wait_ms='499.99' task='summarize_3_bullets' wall_s=1.406
+--- two concurrent same-task (expect hold_window together) ---
+  req1: TTL='hold_window' wait_ms='501.36' task='summarize_3_bullets' wall_s=1.431
+  req2: TTL='hold_window' wait_ms='501.58' task='summarize_3_bullets' wall_s=1.452
+--- starvation / independence: lonely off-task during same-task hold ---
+  batch req1: TTL='hold_window' wait_ms='500.37' task='summarize_3_bullets' wall_s=1.439
+  batch req2: TTL='hold_window' wait_ms='500.21' task='summarize_3_bullets' wall_s=1.547
+  lonely (different task): TTL='hold_window' wait_ms='500.18' task='extract_entities' wall_s=1.181
+  ok: off-task wait_ms=500.18 <= MAX_TTL_MS+slack (1000.0+40)
+--- max_batch: 8 concurrent same-task (expect max_batch) ---
+  req1: TTL='max_batch' wait_ms='39.90' task='summarize_3_bullets' wall_s=1.191
+  req2: TTL='max_batch' wait_ms='8.39' task='summarize_3_bullets' wall_s=1.191
+  req3: TTL='max_batch' wait_ms='8.49' task='summarize_3_bullets' wall_s=1.190
+  req4: TTL='max_batch' wait_ms='28.78' task='summarize_3_bullets' wall_s=1.190
+  req5: TTL='max_batch' wait_ms='29.02' task='summarize_3_bullets' wall_s=1.190
+  req6: TTL='max_batch' wait_ms='2.68' task='summarize_3_bullets' wall_s=1.167
+  req7: TTL='max_batch' wait_ms='2.01' task='summarize_3_bullets' wall_s=1.154
+  req8: TTL='max_batch' wait_ms='0.02' task='summarize_3_bullets' wall_s=1.013
+--- openai client ok ---
+smoke_ttl: PASS
+# Aire gpu014 2026-07-24

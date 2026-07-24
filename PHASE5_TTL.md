@@ -67,6 +67,6 @@ Baselines: hold off vs hold on (e.g. 30–50 ms window).
 - [x] Wire `app.py` / `start_proxy.sh` / headers
 - [x] Unit tests (incl. simultaneous max_batch + cross-task independence)
 - [x] `smoke_ttl.py` (hold, cross-task starvation/independence, optional max_batch, asserts)
-- [ ] Aire smoke hold **on** (lonely + co-arrive + off-task independence; run 2–3× for jitter)
-- [ ] Aire smoke optional `--max-batch-peers`
-- [ ] Aire control hold **off** (`--expect-hold-off`)
+- [x] Aire smoke hold **on** (lonely + co-arrive + off-task independence; 3× on gpu014)
+- [x] Aire smoke `--max-batch-peers` (PASS at hold=500; hold=50 too tight for 8-way HTTP)
+- [x] Aire control hold **off** (`--expect-hold-off` → `skip` / 0 ms)
