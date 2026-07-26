@@ -67,6 +67,9 @@ data/raw/
 data/cache/
 tmp/
 temp/
+workloads/phase6/raw_datasets/**
+!workloads/phase6/raw_datasets/README.md
+results/phase6/.cached_tokens_probe_ok.json
 
 # PDFs (thesis drafts / progress copies — keep local)
 *.pdf

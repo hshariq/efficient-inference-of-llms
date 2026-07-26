@@ -19,6 +19,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from src.proxy.config import vllm_base_url
+from src.proxy.metrics_tsr import extract_usage_tokens, get_tsr_counters
 from src.proxy.rewrite import rewrite_request
 from src.proxy.rewrite.align import warm_alignment_cache
 from src.proxy.ttl import TtlConfig, get_admission_hold
@@ -71,8 +72,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Optimizer Box Proxy",
-    version="0.5.0",
-    description="Pass-through + Phase-4 rewrite + Phase-5 TTL hold",
+    version="0.6.0",
+    description="Pass-through + Phase-4 rewrite + Phase-5 TTL hold + Phase-6 TSR metrics",
     lifespan=lifespan,
 )
 
@@ -110,7 +111,20 @@ async def health() -> dict[str, Any]:
         "upstream": app.state.vllm_base_url,
         "upstream_reachable": upstream_ok,
         "ttl_mode": ttl.config.mode if ttl else "unknown",
+        "tsr": get_tsr_counters().snapshot(),
     }
+
+
+@app.get("/metrics")
+async def metrics() -> dict[str, Any]:
+    """Phase 6 TSR counters (source of truth for Optimizer Box runs)."""
+    return get_tsr_counters().snapshot()
+
+
+@app.post("/metrics/reset")
+async def metrics_reset() -> dict[str, Any]:
+    get_tsr_counters().reset()
+    return get_tsr_counters().snapshot()
 
 
 @app.get("/v1/models")
@@ -165,6 +179,15 @@ async def _json_chat(
     extra_headers: dict[str, str],
 ) -> Response:
     r = await client.post("/chat/completions", json=body, headers=headers)
+    if r.status_code < 400:
+        try:
+            data = r.json()
+            prompt_toks, cached_toks = extract_usage_tokens(data.get("usage"))
+            get_tsr_counters().record(
+                prompt_tokens=prompt_toks, cached_tokens=cached_toks
+            )
+        except Exception:  # noqa: BLE001 — never fail the client on metrics
+            logger.debug("TSR record failed", exc_info=True)
     out_headers = dict(extra_headers)
     return Response(
         content=r.content,
@@ -181,6 +204,9 @@ async def _stream_chat(
     extra_headers: dict[str, str],
 ) -> StreamingResponse:
     async def byte_stream() -> AsyncIterator[bytes]:
+        import json as _json
+
+        usage_acc: dict[str, Any] = {}
         async with client.stream(
             "POST",
             "/chat/completions",
@@ -193,7 +219,25 @@ async def _stream_chat(
                 return
             async for chunk in upstream.aiter_raw():
                 if chunk:
+                    # Best-effort parse usage from SSE for TSR counters
+                    try:
+                        for line in chunk.decode("utf-8", errors="ignore").splitlines():
+                            if not line.startswith("data:"):
+                                continue
+                            payload = line.split(":", 1)[1].strip()
+                            if payload == "[DONE]":
+                                continue
+                            obj = _json.loads(payload)
+                            if obj.get("usage"):
+                                usage_acc = obj["usage"]
+                    except Exception:  # noqa: BLE001
+                        pass
                     yield chunk
+        if usage_acc:
+            prompt_toks, cached_toks = extract_usage_tokens(usage_acc)
+            get_tsr_counters().record(
+                prompt_tokens=prompt_toks, cached_tokens=cached_toks
+            )
 
     return StreamingResponse(
         byte_stream(),
@@ -212,8 +256,8 @@ async def root() -> JSONResponse:
     return JSONResponse(
         {
             "service": "optimizer-box-proxy",
-            "phase": 5,
-            "mode": "canonical-prefix-rewrite+ttl",
+            "phase": 6,
+            "mode": "canonical-prefix-rewrite+ttl+tsr",
             "upstream": app.state.vllm_base_url,
         }
     )

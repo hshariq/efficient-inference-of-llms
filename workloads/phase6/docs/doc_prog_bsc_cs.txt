@@ -1,0 +1,190 @@
+BSc Computer Science — Programme Structure Guide (Simulated)
+
+Award aims
+The programme develops theoretical foundations and practical skills in computing,
+preparing graduates for roles in software development, data systems, and further study.
+
+Year 1 structure
+Compulsory modules typically include COMP101 Introduction to Programming, COMP102
+Computer Systems Fundamentals, and MATH105 Calculus I, alongside electives that
+introduce discrete mathematics or professional skills. Students build a shared
+foundation before specialisation.
+
+Year 2 structure
+Core themes include algorithms and data structures, databases, software engineering
+practice, and operating systems. Group project work introduces collaborative delivery
+and version control at scale. Optional modules may cover human–computer interaction or
+introductory machine learning depending on staffing.
+
+Year 3 structure
+Students undertake an individual project worth 40 credits, supervised by academic
+staff, and select optional modules that deepen a chosen pathway (systems, AI, or
+software engineering). The project includes a proposal, interim review, dissertation,
+and demonstration.
+
+Progression rules
+Students normally must pass at least 100 credits in a stage, including all designated
+core modules, to progress. Compensation and condonement, where available, follow
+university ordinances and school-specific constraints. Borderline classification cases
+are considered by the exam board using published criteria.
+
+Careers and further study
+The programme supports sandwich placements where available and provides careers
+workshops in years 2–3. Graduates commonly progress to industry roles or taught
+postgraduate study in computing-related fields.
+
+Quality assurance
+Module and programme content are reviewed periodically. This simulated guide is for
+evaluation workload generation only and does not describe a live enrolment offer.
+
+Staff office hours are advisory; students remain responsible for meeting published deadlines and checking the VLE for updates.
+
+Where module content changes mid-year due to staffing, the school will publish a revision note explaining what is in and out of scope for assessment.
+
+Students are encouraged to form study groups for discussion, provided that assessed submissions remain individual unless collaboration is explicitly allowed.
+
+Past papers, where released, illustrate question style but do not define the exclusive set of examinable topics.
+
+Digital submission systems record timestamps used for late-penalty calculations; technical issues should be evidenced promptly via IT support tickets.
+
+Feedback literacy workshops help students interpret rubric comments and plan improvements for subsequent assessments.
+
+Field trips or external visits, if scheduled, carry separate risk assessments and attendance expectations communicated in advance.
+
+Language support for academic writing is available through the skills centre for students who want structured practice beyond subject tutoring.
+
+Equality, diversity and inclusion expectations apply to classroom discussion, online forums, and group work interactions.
+
+Environmental sustainability guidance encourages double-sided printing only when printing is necessary and promotes digital annotation where feasible.
+
+Careers drop-ins can help translate module projects into CV evidence, especially for sandwich-year applications.
+
+Laboratory health and safety inductions are mandatory before using specialised equipment; incomplete induction blocks access.
+
+Open-book assessments still prohibit unauthorised communication during the assessment window and may use plagiarism detection tools.
+
+Students returning from interruption of study should meet their tutor to confirm which regulations and handbook versions apply to their cohort.
+
+Guest lectures enrich the syllabus but are examinable only when explicitly flagged by the module team.
+
+Cohort note 1: programme teams review anonymised module feedback each year and may adjust workshop pacing, while keeping learning outcomes stable for the awarding period.
+
+Staff office hours are advisory; students remain responsible for meeting published deadlines and checking the VLE for updates.
+
+Where module content changes mid-year due to staffing, the school will publish a revision note explaining what is in and out of scope for assessment.
+
+Students are encouraged to form study groups for discussion, provided that assessed submissions remain individual unless collaboration is explicitly allowed.
+
+Past papers, where released, illustrate question style but do not define the exclusive set of examinable topics.
+
+Digital submission systems record timestamps used for late-penalty calculations; technical issues should be evidenced promptly via IT support tickets.
+
+Feedback literacy workshops help students interpret rubric comments and plan improvements for subsequent assessments.
+
+Field trips or external visits, if scheduled, carry separate risk assessments and attendance expectations communicated in advance.
+
+Language support for academic writing is available through the skills centre for students who want structured practice beyond subject tutoring.
+
+Equality, diversity and inclusion expectations apply to classroom discussion, online forums, and group work interactions.
+
+Environmental sustainability guidance encourages double-sided printing only when printing is necessary and promotes digital annotation where feasible.
+
+Careers drop-ins can help translate module projects into CV evidence, especially for sandwich-year applications.
+
+Laboratory health and safety inductions are mandatory before using specialised equipment; incomplete induction blocks access.
+
+Open-book assessments still prohibit unauthorised communication during the assessment window and may use plagiarism detection tools.
+
+Students returning from interruption of study should meet their tutor to confirm which regulations and handbook versions apply to their cohort.
+
+Guest lectures enrich the syllabus but are examinable only when explicitly flagged by the module team.
+
+Cohort note 2: programme teams review anonymised module feedback each year and may adjust workshop pacing, while keeping learning outcomes stable for the awarding period.
+
+Staff office hours are advisory; students remain responsible for meeting published deadlines and checking the VLE for updates.
+
+Where module content changes mid-year due to staffing, the school will publish a revision note explaining what is in and out of scope for assessment.
+
+Students are encouraged to form study groups for discussion, provided that assessed submissions remain individual unless collaboration is explicitly allowed.
+
+Past papers, where released, illustrate question style but do not define the exclusive set of examinable topics.
+
+Digital submission systems record timestamps used for late-penalty calculations; technical issues should be evidenced promptly via IT support tickets.
+
+Feedback literacy workshops help students interpret rubric comments and plan improvements for subsequent assessments.
+
+Field trips or external visits, if scheduled, carry separate risk assessments and attendance expectations communicated in advance.
+
+Language support for academic writing is available through the skills centre for students who want structured practice beyond subject tutoring.
+
+Equality, diversity and inclusion expectations apply to classroom discussion, online forums, and group work interactions.
+
+Environmental sustainability guidance encourages double-sided printing only when printing is necessary and promotes digital annotation where feasible.
+
+Careers drop-ins can help translate module projects into CV evidence, especially for sandwich-year applications.
+
+Laboratory health and safety inductions are mandatory before using specialised equipment; incomplete induction blocks access.
+
+Open-book assessments still prohibit unauthorised communication during the assessment window and may use plagiarism detection tools.
+
+Students returning from interruption of study should meet their tutor to confirm which regulations and handbook versions apply to their cohort.
+
+Guest lectures enrich the syllabus but are examinable only when explicitly flagged by the module team.
+
+Cohort note 3: programme teams review anonymised module feedback each year and may adjust workshop pacing, while keeping learning outcomes stable for the awarding period.
+
+Staff office hours are advisory; students remain responsible for meeting published deadlines and checking the VLE for updates.
+
+Where module content changes mid-year due to staffing, the school will publish a revision note explaining what is in and out of scope for assessment.
+
+Students are encouraged to form study groups for discussion, provided that assessed submissions remain individual unless collaboration is explicitly allowed.
+
+Past papers, where released, illustrate question style but do not define the exclusive set of examinable topics.
+
+Digital submission systems record timestamps used for late-penalty calculations; technical issues should be evidenced promptly via IT support tickets.
+
+Feedback literacy workshops help students interpret rubric comments and plan improvements for subsequent assessments.
+
+Field trips or external visits, if scheduled, carry separate risk assessments and attendance expectations communicated in advance.
+
+Language support for academic writing is available through the skills centre for students who want structured practice beyond subject tutoring.
+
+Equality, diversity and inclusion expectations apply to classroom discussion, online forums, and group work interactions.
+
+Environmental sustainability guidance encourages double-sided printing only when printing is necessary and promotes digital annotation where feasible.
+
+Careers drop-ins can help translate module projects into CV evidence, especially for sandwich-year applications.
+
+Laboratory health and safety inductions are mandatory before using specialised equipment; incomplete induction blocks access.
+
+Open-book assessments still prohibit unauthorised communication during the assessment window and may use plagiarism detection tools.
+
+Students returning from interruption of study should meet their tutor to confirm which regulations and handbook versions apply to their cohort.
+
+Guest lectures enrich the syllabus but are examinable only when explicitly flagged by the module team.
+
+Cohort note 4: programme teams review anonymised module feedback each year and may adjust workshop pacing, while keeping learning outcomes stable for the awarding period.
+
+Staff office hours are advisory; students remain responsible for meeting published deadlines and checking the VLE for updates.
+
+Where module content changes mid-year due to staffing, the school will publish a revision note explaining what is in and out of scope for assessment.
+
+Students are encouraged to form study groups for discussion, provided that assessed submissions remain individual unless collaboration is explicitly allowed.
+
+Past papers, where released, illustrate question style but do not define the exclusive set of examinable topics.
+
+Digital submission systems record timestamps used for late-penalty calculations; technical issues should be evidenced promptly via IT support tickets.
+
+Feedback literacy workshops help students interpret rubric comments and plan improvements for subsequent assessments.
+
+Field trips or external visits, if scheduled, carry separate risk assessments and attendance expectations communicated in advance.
+
+Language support for academic writing is available through the skills centre for students who want structured practice beyond subject tutoring.
+
+Equality, diversity and inclusion expectations apply to classroom discussion, online forums, and group work interactions.
+
+Environmental sustainability guidance encourages double-sided printing only when printing is necessary and promotes digital annotation where feasible.
+
+Careers drop-ins can help translate module projects into CV evidence, especially for sandwich-year applications.
+
+Laboratory health and safety inductions are mandatory before using specialised equipment; incomplete induction blocks access.
