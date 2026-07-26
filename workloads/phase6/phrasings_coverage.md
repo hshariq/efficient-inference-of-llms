@@ -1,15 +1,11 @@
 # Phase 6 phrasing coverage
 
-Generated: 2026-07-26T01:38:56.572041+00:00
+Generated: 2026-07-26T18:26:54.938204+00:00
 
 | Task | Mined | ShareGPT | LMSYS | MOSS | Gap? |
 |------|------:|---------:|------:|-----:|------|
-| summarize_3_bullets | 0 | 0 | 0 | 0 | YES |
-| extract_entities | 0 | 0 | 0 | 0 | YES |
-| lone_wolf | 0 | 0 | 0 | 0 | YES |
+| summarize_3_bullets | 404 | 0 | 404 | 0 | no |
+| extract_entities | 221 | 0 | 221 | 0 | no |
+| lone_wolf | 11181 | 0 | 11181 | 0 | no |
 
-## Coverage gaps
-
-- **summarize_3_bullets**: 0 mined phrasings after scan of `C:\Users\HP\OneDrive - University of Leeds\Documents\Leeds\Dissertation\workloads\phase6\raw_datasets`. Do not invent; place ShareGPT/LMSYS/MOSS dumps and re-run.
-- **extract_entities**: 0 mined phrasings after scan of `C:\Users\HP\OneDrive - University of Leeds\Documents\Leeds\Dissertation\workloads\phase6\raw_datasets`. Do not invent; place ShareGPT/LMSYS/MOSS dumps and re-run.
-- **lone_wolf**: 0 mined phrasings after scan of `C:\Users\HP\OneDrive - University of Leeds\Documents\Leeds\Dissertation\workloads\phase6\raw_datasets`. Do not invent; place ShareGPT/LMSYS/MOSS dumps and re-run.
+No coverage gaps for scanned tasks.

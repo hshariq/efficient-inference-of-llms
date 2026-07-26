@@ -1,0 +1,61 @@
+{
+  "n": 200,
+  "n_ok": 200,
+  "prompt_tokens": 305639,
+  "cached_tokens": 261795,
+  "tsr": 0.8565497204218048,
+  "hit_rate": 0.65,
+  "mean_ttft_ms": 24.64108420535922,
+  "p50_latency_ms": 15.19389869645238,
+  "p90_latency_ms": 1420.2744528651237,
+  "p99_latency_ms": 1446.2332274671644,
+  "throughput_gen_tok_s": 43.91541396895062,
+  "best_of_n_spread_ms": {
+    "n_groups": 6,
+    "mean": 6.759544834494591,
+    "min": 1.0816305875778198,
+    "max": 26.825545355677605,
+    "p50": 2.818802837282419,
+    "p90": 16.28734590485692,
+    "p99": 25.77172541059554,
+    "values_ms": [
+      1.0816305875778198,
+      1.2633409351110458,
+      1.7744619399309158,
+      3.8631437346339226,
+      5.749146454036236,
+      26.825545355677605
+    ]
+  },
+  "system": "gptcache",
+  "workload": "/users/bgxj0542/efficient-inference-of-llms/workloads/phase6/burst_ablation.jsonl",
+  "out": "/users/bgxj0542/efficient-inference-of-llms/results/phase6/c1_gptcache.jsonl",
+  "concurrency": 1,
+  "server_capabilities": {
+    "base_url": "http://localhost:8000/v1",
+    "models_ok": true,
+    "apc_probe": "likely_enabled",
+    "cached_tokens_call1": 48,
+    "cached_tokens_call2": 48,
+    "usage_call2_raw": {
+      "prompt_tokens": 52,
+      "total_tokens": 68,
+      "completion_tokens": 16,
+      "prompt_tokens_details": {
+        "cached_tokens": 48
+      }
+    },
+    "models_ids": [
+      "meta-llama/Llama-3.1-8B-Instruct"
+    ]
+  },
+  "expected_apc": true,
+  "mode_mismatch": false,
+  "cached_tokens_gate_skipped": false,
+  "cached_tokens_gate_marker": {
+    "ts_iso": "2026-07-26T18:04:27.063540+00:00",
+    "upstream_vllm": "http://localhost:8000/v1",
+    "cached_tokens_call2": 64,
+    "slurm_job_id": "6882827"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "n": 7,
+  "n_ok": 7,
+  "prompt_tokens": 473,
+  "cached_tokens": 240,
+  "tsr": 0.507399577167019,
+  "hit_rate": 1.0,
+  "mean_ttft_ms": 60.06889138370752,
+  "p50_latency_ms": 1070.667245425284,
+  "p90_latency_ms": 1245.4923110082746,
+  "p99_latency_ms": 1280.5189048685133,
+  "throughput_gen_tok_s": 43.77988178957897,
+  "best_of_n_spread_ms": {
+    "n_groups": 1,
+    "mean": 0.44338032603263855,
+    "min": 0.44338032603263855,
+    "max": 0.44338032603263855,
+    "p50": 0.44338032603263855,
+    "p90": 0.44338032603263855,
+    "p99": 0.44338032603263855,
+    "values_ms": [
+      0.44338032603263855
+    ]
+  },
+  "system": "apc",
+  "workload": "/users/bgxj0542/efficient-inference-of-llms/workloads/phase6/smoke_tiny.jsonl",
+  "out": "/users/bgxj0542/efficient-inference-of-llms/results/phase6/run_apc.jsonl",
+  "concurrency": 1,
+  "server_capabilities": {
+    "base_url": "http://localhost:8000/v1",
+    "models_ok": true,
+    "apc_probe": "likely_enabled",
+    "cached_tokens_call1": 16,
+    "cached_tokens_call2": 48,
+    "usage_call2_raw": {
+      "prompt_tokens": 52,
+      "total_tokens": 68,
+      "completion_tokens": 16,
+      "prompt_tokens_details": {
+        "cached_tokens": 48
+      }
+    },
+    "models_ids": [
+      "meta-llama/Llama-3.1-8B-Instruct"
+    ]
+  },
+  "expected_apc": true,
+  "mode_mismatch": false,
+  "cached_tokens_gate_skipped": false,
+  "cached_tokens_gate_marker": {
+    "ts_iso": "2026-07-26T18:04:27.063540+00:00",
+    "upstream_vllm": "http://localhost:8000/v1",
+    "cached_tokens_call2": 64,
+    "slurm_job_id": "6882827"
+  }
+}

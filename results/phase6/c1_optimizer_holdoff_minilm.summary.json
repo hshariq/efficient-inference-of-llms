@@ -1,0 +1,67 @@
+{
+  "n": 200,
+  "n_ok": 200,
+  "prompt_tokens": 306793,
+  "cached_tokens": 214816,
+  "tsr": 0.7001985051810178,
+  "hit_rate": 1.0,
+  "mean_ttft_ms": 126.17799711413682,
+  "p50_latency_ms": 1453.932142816484,
+  "p90_latency_ms": 1659.3036762438715,
+  "p99_latency_ms": 1694.8841628432274,
+  "throughput_gen_tok_s": 41.90259741462954,
+  "best_of_n_spread_ms": {
+    "n_groups": 6,
+    "mean": 5.276278126984835,
+    "min": 1.0974006727337837,
+    "max": 25.653613731265068,
+    "p50": 1.2106960639357567,
+    "p90": 13.48321745172143,
+    "p99": 24.436574103310708,
+    "values_ms": [
+      1.0974006727337837,
+      1.1724410578608513,
+      1.1945907026529312,
+      1.2268014252185822,
+      1.3128211721777916,
+      25.653613731265068
+    ]
+  },
+  "system": "optimizer",
+  "workload": "/users/bgxj0542/efficient-inference-of-llms/workloads/phase6/burst_ablation.jsonl",
+  "out": "/users/bgxj0542/efficient-inference-of-llms/results/phase6/c1_optimizer_holdoff_minilm.jsonl",
+  "concurrency": 1,
+  "server_capabilities": {
+    "base_url": "http://localhost:9000/v1",
+    "models_ok": true,
+    "apc_probe": "likely_enabled",
+    "cached_tokens_call1": 16,
+    "cached_tokens_call2": 96,
+    "usage_call2_raw": {
+      "prompt_tokens": 102,
+      "total_tokens": 118,
+      "completion_tokens": 16,
+      "prompt_tokens_details": {
+        "cached_tokens": 96
+      }
+    },
+    "models_ids": [
+      "meta-llama/Llama-3.1-8B-Instruct"
+    ]
+  },
+  "expected_apc": true,
+  "mode_mismatch": false,
+  "cached_tokens_gate_skipped": false,
+  "cached_tokens_gate_marker": {
+    "ts_iso": "2026-07-26T19:27:28.518037+00:00",
+    "upstream_vllm": "http://localhost:8000/v1",
+    "cached_tokens_call2": 64,
+    "slurm_job_id": "6882827"
+  },
+  "proxy_metrics": {
+    "total_tokens_processed": 306793,
+    "total_tokens_saved": 214816,
+    "requests": 200,
+    "tsr": 0.7001985051810178
+  }
+}
