@@ -23,6 +23,7 @@
 #   model: meta-llama/Llama-3.1-8B-Instruct
 #   flags: --dtype bfloat16 --gpu-memory-utilization 0.90
 #          --max-model-len 8192 --enable-prefix-caching
+#          --enable-prompt-tokens-details  (Phase 6 TSR / cached_tokens)
 #
 # Interactive start (from login node):
 #   srun -t 02:00:00 -p gpu --gres=gpu:1 --mem=64G --cpus-per-task=8 --pty /bin/bash
@@ -88,6 +89,7 @@ echo " Model:    ${MODEL}"
 echo " Port:     ${PORT}"
 echo " Max len:  ${MAX_MODEL_LEN}"
 echo " Prefix:   APC enabled (--enable-prefix-caching)"
+echo " Usage:    prompt_tokens_details enabled (cached_tokens in API)"
 echo " Dtype:    bfloat16"
 echo " GPU util: 0.90"
 echo " FlashInfer sampler: OFF (VLLM_USE_FLASHINFER_SAMPLER=0)"
@@ -101,4 +103,5 @@ python -m vllm.entrypoints.openai.api_server \
   --dtype bfloat16 \
   --gpu-memory-utilization 0.90 \
   --max-model-len "${MAX_MODEL_LEN}" \
-  --enable-prefix-caching
+  --enable-prefix-caching \
+  --enable-prompt-tokens-details

@@ -4,7 +4,10 @@ Same node as eval harness. Model: `meta-llama/Llama-3.1-8B-Instruct`.
 
 ## APC (default Phase 1 path)
 
-Use existing `src/engine/start_on_gpu.sh` / `run_vllm.sh` with `--enable-prefix-caching`.
+Use existing `src/engine/start_on_gpu.sh` / `run_vllm.sh` with
+`--enable-prefix-caching` and `--enable-prompt-tokens-details` (required so
+`usage.prompt_tokens_details.cached_tokens` is populated for Phase 6 TSR).
+Always launch via the script (sets `VLLM_USE_FLASHINFER_SAMPLER=0` on Aire).
 
 Harness:
 
