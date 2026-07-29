@@ -2,7 +2,9 @@
 
 Spec: **`PHASE6_EVAL.md`** · Decisions: **`docs/PHASE6_DECISIONS_LOG.md`**
 
-**Status:** harness + TSR counters + workload builders landed; full Aire runs pending.
+**Dissertation numbers:** **`RESULTS.md`** (living citeable log — update after every Aire run).
+
+**Status:** ablation @ c=1 partial (2026-07-26); burst 2k @ c=8 in progress on gpu020 (2026-07-29).
 
 ## Artefact index
 
