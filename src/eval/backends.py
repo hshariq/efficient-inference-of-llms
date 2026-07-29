@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -204,17 +205,41 @@ class GPTCacheBackend:
         self.threshold = similarity_threshold
         self._store: list[tuple[Any, str, str, int]] = []  # emb, prompt, resp, ptoks
         self._encoder = None
+        self._encoder_lock = threading.Lock()
+        # Eager CPU load before any worker threads (avoids c>1 init races + GPU clash).
+        self._ensure_encoder()
 
-    def _embed(self, text: str):
-        if self._encoder is None:
+    def _ensure_encoder(self) -> None:
+        if self._encoder is not None:
+            return
+        with self._encoder_lock:
+            if self._encoder is not None:
+                return
             try:
+                import os
+
+                # Keep MiniLM off the vLLM GPU even if the parent shell forgot
+                # CUDA_VISIBLE_DEVICES=. Must set before importing/loading ST.
+                os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
+
                 from sentence_transformers import SentenceTransformer
 
-                self._encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+                # device=cpu + disable meta/low-cpu init: ST 5.x + torch 2.8 can
+                # raise "Cannot copy out of meta tensor" under threaded load.
+                self._encoder = SentenceTransformer(
+                    "sentence-transformers/all-MiniLM-L6-v2",
+                    device="cpu",
+                    model_kwargs={"low_cpu_mem_usage": False},
+                )
             except Exception as exc:  # noqa: BLE001
                 raise RuntimeError(
-                    "GPTCacheBackend requires sentence-transformers"
+                    "GPTCacheBackend MiniLM load failed "
+                    f"(need sentence-transformers; prefer CPU while vLLM holds GPU): {exc}"
                 ) from exc
+
+    def _embed(self, text: str):
+        self._ensure_encoder()
+        assert self._encoder is not None
         return self._encoder.encode(text, normalize_embeddings=True)
 
     def _best_hit(self, prompt: str) -> tuple[str, int] | None:

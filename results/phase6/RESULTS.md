@@ -40,15 +40,17 @@ After each Aire run: paste the harness summary into chat → get a short screens
 
 | System | n | TSR | mean TTFT ms | p50 / p90 / p99 lat ms | hit_rate | call1 | File | Cite? | Notes |
 |--------|---|-----|--------------|------------------------|----------|-------|------|-------|-------|
-| apc | 2000/2000 | **0.775** | 122 | 1555 / 2342 / 2762 | 1.0* | 16 | `burst_apc.jsonl` | **OK** (soft crumb) | 2.37M/3.06M prompt toks cached; mode_mismatch false; BoN spread p50≈0.9ms |
-| gptcache | — | — | — | — | — | — | `burst_gptcache.jsonl` | pending | next |
+| apc | 2000/2000 | **0.775** | 122 | 1555 / 2342 / 2762 | 1.0* | 16 | `burst_apc.jsonl` | **OK** (soft crumb) | c=8; 2.37M/3.06M cached; BoN spread p50≈0.9ms |
+| gptcache | 2000/2000 | **0.870** | 51 | **21** / 1419 / 1574 | **0.662** | 16 | `burst_gptcache.jsonl` | **OK** (soft crumb) | **c=1** (MiniLM workaround); answer memoization — not KV reuse |
 | optimizer (hold off) | — | — | — | — | — | — | `burst_optimizer.jsonl` | pending | proxy :9000; restart vLLM for cold |
 | optimizer_hold (hold=50) | — | — | — | — | — | — | `burst_optimizer_hold.jsonl` | pending | max_batch@50 re-check |
 | vanilla (APC off) | — | — | — | — | — | — | `burst_vanilla.jsonl` | pending | needs vLLM restart without APC |
 
-\* `hit_rate=1.0` means `cached_tokens > 0` on every request (often chat-template crumbs) — **not** “100% full-prompt cache hits.” Use **TSR** as the claim.
+\* APC `hit_rate=1.0` = `cached_tokens > 0` (often crumbs). GPTCache `hit_rate=0.662` = real output-cache hits.
 
-**APC burst reading:** Under 2k@c=8, APC saved ~77.5% of prompt tokens. Mean TTFT ~122ms; end-to-end p50 ~1.6s. Higher whole-workload TSR than c=1 APC (0.693). `call1=16` is a soft probe crumb (not the warm-KV 96 reject).
+**APC burst reading:** Under 2k@c=8, APC saved ~77.5% of prompt tokens. Mean TTFT ~122ms; p50 ~1.6s. Soft crumb `call1=16`.
+
+**GPTCache burst reading:** TSR 0.870; p50 **21 ms** (hits skip LLM); p90/p99 ~1.4–1.6 s = misses. Different mechanism from APC — speed/flexibility comparator, not “better prefix cache.” Optional c=8 redo after `backends.py` fix for fairer latency vs APC@c=8; TSR still citeable.
 
 ---
 
