@@ -1,130 +1,223 @@
-# Phase 6 — Results (dissertation source)
+# Phase 6 — Final Results (dissertation source)
 
 > **Canonical** citeable Phase 6 numbers. Spec: `PHASE6_EVAL.md`.  
-> Narrative / caveats: `docs/PHASE6_DECISIONS_LOG.md`.  
-> Snapshot pointer: `ABLATION_C1_2026-07-26.md` (do not duplicate tables there).
+> Decisions / narrative: `docs/PHASE6_DECISIONS_LOG.md`.  
+> Short ablation pointer: `ABLATION_C1_2026-07-26.md` (tables live **here only**).
 
-**Primary metric:** Token Saving Ratio (TSR). TTFT / latency are secondary (cost).  
-**Corpus:** simulated Leeds Student Assistant — not real student data.  
-**Model:** `meta-llama/Llama-3.1-8B-Instruct` · vLLM 0.11.0
+**Status (2026-07-30):** **6f burst matrix complete.** Per-tier on burst JSONLs, quality (6h), charts (6i), aggregate tables (6j) still pending.
 
 ---
 
-## How to use this file
+## 1. Setup (cite in methodology)
 
-After each Aire run: paste the harness summary into chat → get a short screenshot blurb → this file is updated with the full row (cite / do-not-cite flagged).
+| Item | Value |
+|------|--------|
+| Model | `meta-llama/Llama-3.1-8B-Instruct` |
+| Engine | vLLM **0.11.0** (V1) |
+| Primary metric | **TSR** = `cached_tokens / prompt_tokens` (harness; proxy `/metrics` cross-check for Optimizer) |
+| Secondary | mean TTFT (client-side, includes hold), p50/p90/p99 latency, hit rate, throughput |
+| Corpus | Simulated **University of Leeds Student Assistant** — **not** real student data |
+| Docs | 8 synthetic university-style RAG docs |
+| Phrasing | LMSYS-mined (ShareGPT/MOSS deferred) — no hand-authored paraphrases |
+| Tasks | Catalogue: mainly `summarize_3_bullets` (+ `extract_entities` where matched) |
+| Workloads | `burst_ablation.jsonl` (200) · `burst_full.jsonl` (2000 = 400 exact / 800 semantic / 300 BoN / 500 lone_wolf) |
+| Concurrency | Ablation c=1 · Burst **c=8** (BoN groups always co-dispatched) |
+| Hard gate | `probe_cached_tokens` PASS required for apc/optimizer/gptcache |
+| Vanilla note | vLLM 0.11 **defaults APC on** — must launch with `--no-enable-prefix-caching` |
 
-**Cite only** rows marked **OK**. Reject if `cached_tokens_call1` is large (warm KV; typically ≥96). Soft crumb (single-digit / low teens after probe) is noted but prefer cold restart.
+**Systems**
 
-**Always prefer per-tier TSR** over whole-workload aggregate when claiming Optimizer vs APC (see § Ablation).
-
----
-
-## Session: 2026-07-29 — gpu020 · job `6913635`
-
-### Gate
-
-| Check | Result |
+| Label | Stack |
 |-------|--------|
-| Probe | **PASS** — call1=`0`, call2=`64` |
-| Marker | `results/phase6/.cached_tokens_probe_ok.json` |
-| Flags | APC on · `prompt_tokens_details` on · FlashInfer sampler off |
+| vanilla | vLLM, APC **off** (`--no-enable-prefix-caching`) |
+| apc | vLLM, APC **on**, direct `:8000` |
+| gptcache | In-process semantic **answer** cache → upstream `:8000` (MiniLM similarity ≥ 0.92) |
+| optimizer | Proxy `:9000` rewrite on, hold off, embed off\|minilm |
+| optimizer_hold | Same + admission hold on (`hold_ms=50`, `batch_peers=8`) |
 
-### Smoke (not for dissertation tables)
+**Honesty rules**
 
-| System | Workload | n | TSR | mean TTFT ms | p50 lat ms | call1 | File | Cite? |
-|--------|----------|---|-----|--------------|------------|-------|------|-------|
-| apc | `smoke_tiny.jsonl` | 7/7 | 0.507 | 60 | 1071 | 16 (warm from probe) | `smoke_apc_gpu020.jsonl` | **No** — plumbing only |
-
-### Burst 2k @ concurrency=8 (`burst_full.jsonl`)
-
-| System | n | TSR | mean TTFT ms | p50 / p90 / p99 lat ms | hit_rate | call1 | File | Cite? | Notes |
-|--------|---|-----|--------------|------------------------|----------|-------|------|-------|-------|
-| apc | 2000/2000 | **0.775** | 122 | 1555 / 2342 / 2762 | 1.0* | 16 | `burst_apc.jsonl` | **OK** (soft crumb) | c=8; 2.37M/3.06M cached; BoN spread p50≈0.9ms |
-| gptcache | 2000/2000 | **0.870** | 51 | **21** / 1419 / 1574 | **0.662** | 16 | `burst_gptcache.jsonl` | **OK** (soft crumb) | **c=1** (MiniLM workaround); answer memoization — not KV reuse |
-| optimizer (hold off) | — | — | — | — | — | — | `burst_optimizer.jsonl` | pending | proxy :9000; restart vLLM for cold |
-| optimizer_hold (hold=50) | — | — | — | — | — | — | `burst_optimizer_hold.jsonl` | pending | max_batch@50 re-check |
-| vanilla (APC off) | — | — | — | — | — | — | `burst_vanilla.jsonl` | pending | needs vLLM restart without APC |
-
-\* APC `hit_rate=1.0` = `cached_tokens > 0` (often crumbs). GPTCache `hit_rate=0.662` = real output-cache hits.
-
-**APC burst reading:** Under 2k@c=8, APC saved ~77.5% of prompt tokens. Mean TTFT ~122ms; p50 ~1.6s. Soft crumb `call1=16`.
-
-**GPTCache burst reading:** TSR 0.870; p50 **21 ms** (hits skip LLM); p90/p99 ~1.4–1.6 s = misses. Different mechanism from APC — speed/flexibility comparator, not “better prefix cache.” Optional c=8 redo after `backends.py` fix for fairer latency vs APC@c=8; TSR still citeable.
+- Cite only rows marked **OK**. Reject warm KV (`cached_tokens_call1` ≈ 96 → TSR ≈ 0.995).
+- Soft crumb (`call1` 0–48 after probe) noted; prefer cold.
+- APC/optimizer `hit_rate=1.0` means `cached_tokens > 0` (often template crumbs) — **not** full-prompt hit rate. **Claim TSR.**
+- GPTCache is **answer memoization**, not KV prefix reuse — different mechanism.
+- No TTFT-win claim unless data shows one. TSR↑ / TTFT flat is expected and valid.
+- Do **not** headline TBT/TPOT (prefill-scope system).
 
 ---
 
-## Ablation @ c=1 — 2026-07-26 · gpu012 · job `6882827`
+## 2. Headline results (use in dissertation tables)
 
-Workload: `burst_ablation.jsonl` (200 req = exact 40 / semantic 80 / best_of_n 30 / lone_wolf 50).
+### 2.1 Burst 2k @ c=8 — main comparison
 
-### Whole-workload (secondary — do not over-claim from this alone)
+| System | TSR | mean TTFT (ms) | p50 lat (ms) | p90 | p99 | File |
+|--------|-----|----------------|--------------|-----|-----|------|
+| **vanilla** | **0.000** | 308 | 2410 | 2961 | 3425 | `burst_vanilla.jsonl` |
+| **apc** | **0.775** | 122 | 1555 | 2342 | 2762 | `burst_apc.jsonl` |
+| **optimizer** (hold off, embed off) | **0.780** | 126 | 1641 | 2272 | 2738 | `burst_optimizer_holdoff_embedoff.jsonl` |
+| gptcache | 0.862 | 111 | 110 | 1523 | 2866 | `burst_gptcache_c8.jsonl` |
 
-| System | TSR | mean TTFT ms | p50 lat ms | call1 | File | Cite? |
-|--------|-----|--------------|------------|-------|------|-------|
-| vanilla | 0.00 | 101 | 1443 | 0 | `c1_vanilla.jsonl` | **OK** |
-| apc | 0.693 | 98 | 1444 | — | `c1_apc.jsonl` | **OK** |
-| gptcache | 0.857 | 25 | 15 | — | `c1_gptcache.jsonl` | **OK** (answer cache) |
-| optimizer hold-on embed-off | 0.700 | 146 | 1506 | 0 | `c1_optimizer_hold.jsonl` | **OK** |
-| optimizer hold-off minilm | 0.700 | 126 | 1454 | 16 | `c1_optimizer_holdoff_minilm.jsonl` | **OK** |
-| optimizer hold-on minilm | 0.700 | 165 | 1507 | 0 | `c1_optimizer_holdon_minilm.jsonl` | **OK** |
+**One-paragraph takeaway:** Without APC, TSR is zero and latency is highest. APC saves ~77.5% of prompt tokens and cuts median latency vs vanilla. Optimizer rewrite-only matches APC on aggregate TSR (~0.780) with similar TTFT — on this catalogue/mix, most savings are already APC’s. GPTCache posts higher TSR and much lower p50 via answer reuse (not prefix KV); treat as comparator, not “better APC.”
 
-### Per-tier TSR (primary comparison)
+### 2.2 Optimizer 2×2 ablation (burst) — latency cost, flat TSR
 
-Computed from JSONL `tier` + `prompt_tokens` / `cached_tokens` (2026-07-29 audit).
+| Hold | MiniLM | TSR | mean TTFT (ms) | p50 lat (ms) | n_ok | File | Role |
+|------|--------|-----|----------------|--------------|------|------|------|
+| off | off | **0.780** | 126 | 1641 | 2000/2000 | `burst_optimizer_holdoff_embedoff.jsonl` | **Main Optimizer row** |
+| on (50 ms) | off | 0.780 | **200** | 1698 | 2000/2000 | `burst_optimizer_holdon_embedoff.jsonl` | Hold tax; max_batch@50 cell |
+| off | on | 0.780 | **608** | 1813 | **1999**/2000 | `burst_optimizer_holdoff_minilm.jsonl` | MiniLM tax (1 error) |
+| on | on | 0.780 | **639** | 1851 | 2000/2000 | `burst_optimizer_holdon_minilm.jsonl` | Worst latency |
 
-| System | exact | semantic | best_of_n | lone_wolf | aggregate |
-|--------|------:|---------:|----------:|----------:|----------:|
+**Takeaway:** Hold and MiniLM do **not** raise TSR on this workload; they add client-side cost (MiniLM dominates). Prefer embed-off for main claims.
+
+### 2.3 Ablation @ c=1 (200 req) — supports same story at small scale
+
+| System | TSR | mean TTFT (ms) | p50 lat (ms) |
+|--------|-----|----------------|--------------|
+| vanilla | 0.00 | 101 | 1443 |
+| apc | 0.693 | 98 | 1444 |
+| optimizer (citeable cells) | 0.700 | 126–165 | 1454–1507 |
+| gptcache | 0.857 | 25 | 15 |
+
+### 2.4 Per-tier TSR @ c=1 (do not rely on aggregate alone for Optimizer vs APC)
+
+| System | exact | **semantic** | best_of_n | lone_wolf | aggregate |
+|--------|------:|-------------:|----------:|----------:|----------:|
 | vanilla | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
 | apc | 0.974 | **0.461** | 0.964 | 0.379 | 0.693 |
-| optimizer (all three citeable configs) | 0.976 | **0.475** | 0.963 | ~0.35 | 0.700 |
+| optimizer | 0.976 | **0.475** | 0.963 | ~0.35 | 0.700 |
 | gptcache | 0.975 | 0.759 | 1.000 | 0.000 | 0.857 |
 
-**Optimizer − APC on semantic tier only: +0.014** (0.475 − 0.461).  
-Not a large hidden win — aggregate ≈0.007 gap is **not** masking a massive semantic-only gap. APC still gets substantial TSR on semantic (~0.46) via shared prefixes / template crumbs / repeated doc bodies across paraphrases, not “near zero.”
+**Optimizer − APC on semantic only: +0.014.** No buried headline win in the aggregate gap. Burst per-tier still TODO (`aggregate --jsonl` on `burst_*.jsonl`).
 
-Exact + BoN dominate both systems (~0.96–0.98). Lone-wolf stays low (crumbs only). GPTCache’s semantic TSR is answer-memoization, not KV reuse.
+---
 
-### Identical aggregate TSR 0.700 across three optimizer configs — resolved
+## 3. Full burst run log (all cells)
 
-**Benign, not harness contamination.**
+Nodes/jobs: gpu020 `6913635` (APC/GPTCache) · gpu001 `6920808` (Optimizer 2×2) · gpu005 (vanilla).
 
-| Config | rewrite / bypass | catalogue | MiniLM evidence |
-|--------|------------------|-----------|-----------------|
-| hold-on embed-off | 150 / 50 | 150 `summarize_3_bullets`, 50 `unknown` | no embed path |
-| hold-off minilm | 151 / 49 | 150 summarize, 49 unknown, **1** `extract_entities` | MiniLM fired **1×** |
-| hold-on minilm | 151 / 49 | same as hold-off minilm | MiniLM fired **1×** |
+| System | Config | n | TSR | TTFT | p50/p90/p99 | hit_rate | call1 | Cite? | Artefact |
+|--------|--------|---|-----|------|-------------|----------|-------|-------|----------|
+| apc | APC on, direct | 2000/2000 | 0.775 | 122 | 1555/2342/2762 | 1.0* | 16 | **OK** | `burst_apc.jsonl` |
+| gptcache | c=1 (MiniLM race workaround) | 2000/2000 | 0.870 | 51 | 21/1419/1574 | 0.662 | 16 | OK backup | `burst_gptcache.jsonl` |
+| gptcache | **c=8 aligned** | 2000/2000 | 0.862 | 111 | 110/1523/2866 | 0.656 | 48 | **OK prefer** | `burst_gptcache_c8.jsonl` |
+| optimizer | hold off, embed off | 2000/2000 | 0.780 | 126 | 1641/2272/2738 | 1.0* | 16 | **OK** | `burst_optimizer_holdoff_embedoff.jsonl` |
+| optimizer_hold | hold on 50, embed off | 2000/2000 | 0.780 | 200 | 1698/2387/2821 | 1.0* | **0** | **OK cold** | `burst_optimizer_holdon_embedoff.jsonl` |
+| optimizer | hold off, minilm | 1999/2000 | 0.780 | 608 | 1813/3371/5175 | 1.0* | 16 | **OK** note 1 err | `burst_optimizer_holdoff_minilm.jsonl` |
+| optimizer_hold | hold on, minilm | 2000/2000 | 0.780 | 639 | 1851/3309/4683 | 1.0* | 16 | **OK** | `burst_optimizer_holdon_minilm.jsonl` |
+| vanilla | `--no-enable-prefix-caching` | 2000/2000 | 0.000 | 308 | 2410/2961/3425 | 0.0 | 0 | **OK** | `burst_vanilla.jsonl` |
 
-- Semantic tier: **80/80 rewrite** on all three — rules alone matched every catalogue semantic request; MiniLM never needed there.
-- The single MiniLM hit is `lone-156` (lone_wolf → `extract_entities`, 124 prompt toks, 16 cached) — negligible for aggregate TSR.
-- Hold on vs off does not change prefix tokens → identical TSR expected at c=1; hold only moves TTFT/wait.
-- Cold `call1` was 0 or 16 (soft crumb), not 96. The **0.995 / call1=96** run remains do-not-cite (`c1_optimizer.summary.json` warm KV).
+\* APC/optimizer hit_rate: weak signal. GPTCache hit_rate: real answer-cache hits.
 
-**Harness gap:** Phase 6 JSONL logs `rewrite` as header string (`rewrite`|`bypass`) only — not `embed_used`. Inference above is from `catalogue_task` diffs. Prefer logging `embed_used` in a later harness tweak.
+**Smoke (not for tables):** `smoke_apc_gpu020.jsonl` TSR 0.507 n=7; `smoke_gptcache_c8.jsonl` TSR 0 (tiny unique mix @ c=8).
+
+---
+
+## 4. Ablation @ c=1 detail (2026-07-26 · gpu012 · job `6882827`)
+
+Workload: `burst_ablation.jsonl` (200 = 40/80/30/50).
+
+### Citeable whole-workload
+
+| System | TSR | TTFT | p50 | call1 | File |
+|--------|-----|------|-----|-------|------|
+| vanilla | 0.00 | 101 | 1443 | 0 | `c1_vanilla.jsonl` |
+| apc | 0.693 | 98 | 1444 | — | `c1_apc.jsonl` |
+| gptcache | 0.857 | 25 | 15 | — | `c1_gptcache.jsonl` |
+| optimizer hold-on embed-off | 0.700 | 146 | 1506 | 0 | `c1_optimizer_hold.jsonl` |
+| optimizer hold-off minilm | 0.700 | 126 | 1454 | 16 | `c1_optimizer_holdoff_minilm.jsonl` |
+| optimizer hold-on minilm | 0.700 | 165 | 1507 | 0 | `c1_optimizer_holdon_minilm.jsonl` |
+
+### Why three optimizer configs all showed TSR 0.700 — benign
+
+| Config | rewrite/bypass | MiniLM |
+|--------|----------------|--------|
+| hold-on embed-off | 150/50 | never |
+| hold-off / hold-on minilm | 151/49 | **1×** (`lone-156` → `extract_entities`) |
+
+Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; hold only moves TTFT.
 
 ### Do not cite
 
-- Any run with **TSR ≈ 0.995** and `cached_tokens_call1: 96` (warm KV after prior APC runs).
+- Warm KV runs with **TSR ≈ 0.995** and `cached_tokens_call1: 96` (e.g. early `c1_optimizer.summary.json`).
 
-### Still missing (c=1 matrix)
+### Still missing (c=1 only)
 
-- Cold **hold-off + embed-off** optimizer cell (rules+full, no MiniLM).
-
-### Reading (for write-up)
-
-1. Vanilla TSR=0 vs APC/Optimizer ~0.69–0.70 with similar TTFT → token saving, not TTFT win.
-2. Aggregate Optimizer≈APC is real; **per-tier confirms** only a small semantic lift (+1.4 pp), not a buried headline win.
-3. MiniLM barely engages on this workload slice — rules suffice for catalogue semantic/exact/BoN.
-4. Hold at c=1 does not raise TSR; real test is burst co-arrival (6f).
-5. GPTCache highest TSR via answer memoization — different mechanism; quality in 6h.
+- Cold hold-off + embed-off at c=1 (covered at burst scale as main Optimizer row).
 
 ---
 
-## Quality / charts / aggregate
+## 5. Operational notes (methods appendix)
+
+| Issue | Resolution |
+|-------|------------|
+| GPTCache `requires sentence-transformers` | Package present; real failure = meta-tensor / GPU clash / c=8 race |
+| Fix | `device=cpu`, `low_cpu_mem_usage=False`, encoder lock + eager init (`src/eval/backends.py`) |
+| Vanilla still showing APC | vLLM 0.11 **default APC on**; use `--no-enable-prefix-caching` |
+| Proxy MiniLM vs vLLM GPU | Start proxy with `CUDA_VISIBLE_DEVICES=` when embed=minilm |
+| Gate key | Upstream URL fingerprint (`localhost:8000`), not Slurm hostname |
+| Hold default | `OPTIMIZER_ADMISSION_HOLD_MS=50` for realistic burst (Phase 5 open item) |
+
+---
+
+## 6. Claims you can / cannot make
+
+**Can say**
+
+1. Vanilla TSR=0 vs APC/Optimizer ~0.78 → prefix caching yields large token savings on this workload.
+2. Optimizer rewrite-only ≈ APC on **aggregate** TSR; not a large aggregate win over stock APC here.
+3. Hold raises TTFT (~+74 ms embed-off); does not raise TSR — co-arrival/fairness tool, not a TSR lever.
+4. MiniLM adds large latency, negligible TSR — rules cover catalogue on this mix.
+5. GPTCache highest TSR / lowest p50 via **answer** cache — different mechanism; quality tradeoff for 6h.
+6. c=1 per-tier: Optimizer semantic lift only **+1.4 pp** vs APC.
+
+**Cannot say**
+
+1. Optimizer massively beats APC on TSR (data say otherwise).
+2. TTFT win for Optimizer/APC vs each other (bands similar; vanilla slower).
+3. APC `hit_rate=1.0` = 100% exact full-prompt hits.
+4. GPTCache is “better prefix caching.”
+5. Anything from warm-KV TSR≈0.995 runs.
+
+---
+
+## 7. Artefact index
+
+| Path | Role |
+|------|------|
+| `burst_vanilla.jsonl` + `.summary.json` | No-APC baseline |
+| `burst_apc.jsonl` | APC baseline |
+| `burst_gptcache.jsonl` / `burst_gptcache_c8.jsonl` | GPTCache c=1 / c=8 |
+| `burst_optimizer_holdoff_embedoff.jsonl` | Main Optimizer |
+| `burst_optimizer_holdon_embedoff.jsonl` | Hold ablation + max_batch@50 |
+| `burst_optimizer_holdoff_minilm.jsonl` | MiniLM ablation (1 fail) |
+| `burst_optimizer_holdon_minilm.jsonl` | Hold+MiniLM |
+| `c1_*.jsonl` | Ablation @ c=1 |
+| `aggregate_per_tier.{md,csv}` | c=1 per-tier export |
+| `.cached_tokens_probe_ok.json` | Gate marker (ephemeral per job) |
+
+Regenerate per-tier:
+
+```bash
+PYTHONPATH=. python -m src.eval.aggregate --jsonl \
+  results/phase6/burst_vanilla.jsonl \
+  results/phase6/burst_apc.jsonl \
+  results/phase6/burst_gptcache_c8.jsonl \
+  results/phase6/burst_optimizer_holdoff_embedoff.jsonl \
+  results/phase6/burst_optimizer_holdon_embedoff.jsonl
+```
+
+---
+
+## 8. Remaining Phase 6 work
 
 | Step | Status |
 |------|--------|
-| Per-tier breakdown (c=1) | **done** (table above); use `python -m src.eval.aggregate --jsonl ...` |
-| 6h quality spot-check | pending |
-| 6i six charts | pending (need burst artefacts) |
-| 6j aggregate tables | pending |
+| 6a–6e scaffold / c=1 | Done |
+| **6f burst + hold=50** | **Done** |
+| Burst per-tier TSR | TODO (JSONLs on Aire → copy or run aggregate there) |
+| max_batch disposition counts @ hold=50 | TODO (grep `ttl` in hold-on JSONL) |
+| 6h quality spot-check | Pending |
+| 6i six charts + captions | Pending |
+| 6j aggregate dissertation tables | Pending |
+| Optional later | Wider catalogue / ShareGPT+MOSS / semantic-heavy mix (sensitivity, not replacement) |

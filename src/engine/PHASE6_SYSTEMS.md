@@ -17,8 +17,23 @@ PYTHONPATH=. python -m src.eval.run --system apc --workload workloads/phase6/smo
 
 ## Vanilla (no prefix caching)
 
-Launch vLLM **without** `--enable-prefix-caching` (comment out / omit the flag in
-the start script for that job). Keep the same model and port `:8000`.
+**vLLM 0.11 (V1) enables APC by default.** Omitting `--enable-prefix-caching`
+is **not** enough — you must pass **`--no-enable-prefix-caching`**.
+
+```bash
+export VLLM_USE_FLASHINFER_SAMPLER=0
+python -m vllm.entrypoints.openai.api_server \
+  --model meta-llama/Llama-3.1-8B-Instruct \
+  --host 0.0.0.0 --port 8000 \
+  --dtype bfloat16 \
+  --gpu-memory-utilization 0.90 \
+  --max-model-len 8192 \
+  --enable-prompt-tokens-details \
+  --no-enable-prefix-caching
+```
+
+Confirm engine log shows `enable_prefix_caching=False`. Probe should report
+`call2 cached_tokens = 0` (gate FAIL is expected for vanilla).
 
 ```bash
 PYTHONPATH=. python -m src.eval.run --system vanilla --workload workloads/phase6/smoke_tiny.jsonl

@@ -2,9 +2,9 @@
 
 Spec: **`PHASE6_EVAL.md`** · Decisions: **`docs/PHASE6_DECISIONS_LOG.md`**
 
-**Dissertation numbers:** **`RESULTS.md`** (living citeable log — update after every Aire run).
+**Dissertation numbers (canonical):** **[`RESULTS.md`](RESULTS.md)** — final citeable log (6f burst matrix complete as of 2026-07-30).
 
-**Status:** ablation @ c=1 partial (2026-07-26); burst 2k @ c=8 in progress on gpu020 (2026-07-29).
+**Status:** 6f done · burst per-tier / quality / charts / aggregate still pending.
 
 ## Artefact index
 
