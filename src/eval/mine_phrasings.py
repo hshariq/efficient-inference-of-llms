@@ -29,7 +29,8 @@ RAW = ROOT / "workloads" / "phase6" / "raw_datasets"
 OUT = ROOT / "workloads" / "phase6" / "phrasings"
 
 SUMMARIZE_RE = re.compile(
-    r"\b(summariz|summaris|summary|bullet\s*points?|key\s+points?|3\s*bullets?|three\s+bullets?)\b",
+    r"\b(summariz|summaris|summary|bullet\s*points?|key\s+points?|3\s*bullets?|"
+    r"three\s+bullets?|key\s+takeaways?|tl;?dr)\b",
     re.I,
 )
 ENTITY_RE = re.compile(
@@ -178,7 +179,12 @@ def mine() -> dict[str, list[dict]]:
             buckets["extract_entities"].append(
                 {"mine_id": mine_id, "source": source, "instruction": instr, "raw": text}
             )
-        elif not LONE_EXCLUDE.search(text) and len(text) < 200:
+        elif (
+            not LONE_EXCLUDE.search(text)
+            and len(text) < 200
+            # Keep lone_wolf English-primary; MOSS Chinese floods otherwise
+            and sum(1 for c in text if ord(c) < 128) >= 0.7 * max(len(text), 1)
+        ):
             buckets["lone_wolf"].append(
                 {"mine_id": mine_id, "source": source, "instruction": text, "raw": text}
             )
