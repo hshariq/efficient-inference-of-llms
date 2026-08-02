@@ -183,7 +183,7 @@ Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; ho
 1. Vanilla TSR=0 vs APC/Optimizer ~0.78 → prefix caching yields large token savings on this workload.
 2. On the **main four-tier mix**, Optimizer rewrite-only ≈ APC on aggregate TSR; not a large aggregate win over stock APC there.
 3. On that mix’s semantic tier, Optimizer−APC is only **+0.014**; partly because semantic rows included exact re-cycles (§2.5).
-4. On an **adversarial semantic-only** probe (unique mined instructions, short shared doc, no repeats): APC TSR **0.108**, Optimizer **0.315** (**+0.207**) — Phase 4 hypothesis holds under that stress (§9).
+4. On a **uniqueness / no-exact-repeat** probe (unique mined instructions, short shared doc): APC TSR **0.108**, Optimizer **0.315** (**+0.207**); replicated ShareGPT+LMSYS n=224 (**+0.203**) — Phase 4 holds under that stress (§9/§9b). Prefer citing with bootstrap CIs once pasted.
 5. Hold raises TTFT; does not raise TSR on the main mix.
 6. MiniLM adds large latency, negligible TSR on the main mix.
 7. GPTCache is answer memoization — different mechanism.
@@ -196,7 +196,8 @@ Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; ho
 3. APC `hit_rate=1.0` = 100% exact full-prompt hits.
 4. GPTCache is “better prefix caching.”
 5. Warm-KV TSR≈0.995 runs.
-6. That the adversarial probe replaces 6f — it **explains** when rewrite helps; main mix results still stand.
+6. That the uniqueness probe replaces 6f — it **explains** when rewrite helps; main mix results still stand.
+7. That §9/§9b are “adversarial attacks” on rewrite, or that they generalize to multi-doc production Leeds RAG without further evidence.
 
 ---
 
@@ -238,8 +239,8 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | Burst per-tier TSR | TODO |
 | max_batch disposition counts @ hold=50 | TODO |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
-| **Optional: adversarial semantic-only probe** | **Done (LMSYS)** — APC 0.108 vs Optimizer **0.315** (+0.207); see §9 |
-| **Multi-source uniqueness (ShareGPT+MOSS)** | **Pipeline ready** — fetch → mine → build → eval (§9b) |
+| **Uniqueness probe (no exact repeats)** | **Done** — LMSYS n=83 +0.207; ShareGPT+LMSYS n=224 +0.203 (§9/§9b) |
+| **Probe CIs / histograms** | Run `aggregate --probe-stats` on Aire JSONLs; paste into §9 |
 | 6h quality spot-check | Pending |
 | 6i six charts + captions | Pending |
 | 6j aggregate dissertation tables | Pending |
@@ -250,7 +251,9 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 
 ---
 
-## 9. Adversarial semantic-only probe (ready to run)
+## 9. Uniqueness stress probe (“adversarial” filename kept)
+
+**Name in prose:** prefer **uniqueness / no-exact-repeat probe** — not “adversarial” in the attack sense. Filenames stay `adversarial_semantic*` for continuity. This isolates Phase 4’s confound (exact re-cycles inflating APC), not a rewrite-aware adversary trying to break canonicalization.
 
 **Purpose:** Stress Phase 4 win condition without exact re-cycles that inflated APC semantic TSR in §2.5.
 
@@ -258,10 +261,12 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 |---------------|--------|
 | Workload | `workloads/phase6/adversarial_semantic.jsonl` (**83** req) |
 | Meta | `adversarial_semantic.meta.json` |
-| Doc | `docs/doc_adversarial_short.txt` (~795 chars, shared) |
+| Doc | `docs/doc_adversarial_short.txt` (~795 chars, **one** shared doc) |
 | Instructions | Unique LMSYS-mined, **rules-matched** `summarize_3_bullets` only |
 | Exact repeats | **None** (deduped prompts) |
 | Builder | `python -m src.eval.build_adversarial_semantic` |
+
+**Favorable setup (state explicitly):** single short shared suffix favors rewrite→APC reuse. Does **not** claim generalization to multi-doc / full-length Leeds RAG mixes (8 docs). Cite as sensitivity under uniqueness, alongside the main matrix.
 
 **Systems (only two):** `apc` vs `optimizer` (hold **off**, embed **off**). Cold vLLM between runs.
 
@@ -269,10 +274,10 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 
 | Result | Interpretation |
 |--------|----------------|
-| Optimizer TSR ≫ APC (APC median ~crumbs) | Hypothesis OK under stress; main matrix was workload-limited |
-| Still flat | Design insight: rewrite adds little even when adversarial; discuss honestly |
+| Optimizer TSR ≫ APC (APC median ~crumbs) | Hypothesis OK under uniqueness stress; main matrix was workload-limited |
+| Still flat | Rewrite adds little even without exact repeats; discuss honestly |
 
-**Also report:** histogram of `cached_tokens/prompt_tokens` (median + bins), not only mean TSR.
+**Also report:** per-request `cached/prompt` histogram + **bootstrap 95% CI** on TSR (small n), not only point mean.
 
 ### Aire commands
 
@@ -306,7 +311,7 @@ Prefer **c=1** so the first→later cache story is readable (no concurrent miss 
 | apc | 83/83 | **0.108** | 52 | 1422 | 16 | `adv_sem_apc.jsonl` | **OK** (soft crumb) |
 | optimizer hold-off embed-off | 83/83 | **0.315** | 54 | 1424 | **0** | `adv_sem_optimizer.jsonl` | **OK** (cold) |
 
-**Gap:** Optimizer − APC = **+0.207** (0.315 vs 0.108) — ~**3×** APC’s TSR on this probe.
+**Gap:** Optimizer − APC = **+0.207** (0.315 vs 0.108) — ~**3×** APC’s TSR on this probe. Treat as a **point estimate** until `probe_stats` CIs are pasted (below).
 
 **APC reading:** TSR **0.108** vs ~0.46 mean on the old “semantic” tier — probe worked. Without exact re-cycles, APC mostly sees crumbs/shared-template tokens (~1.9k / 18k). Soft `call1=16`.
 
@@ -317,48 +322,52 @@ Prefer **c=1** so the first→later cache story is readable (no concurrent miss 
 | Setting | Optimizer − APC (semantic) |
 |---------|----------------------------|
 | Main mix (c=1 ablation, §2.4) | **+0.014** (weak / noise) |
-| Adversarial unique-instr + short shared doc (§9) | **+0.207** (clear) |
+| Uniqueness probe LMSYS-only (§9) | **+0.207** (clear; CI pending) |
 
-So: Phase 4 hypothesis is **supported under adversarial stress**, but **not** on the original four-tier mix (where exact re-cycles inflated APC). Main-matrix “Optimizer ≈ APC” remains true for that workload; this probe explains *when* rewrite helps. Prefer reporting **both**, not replacing 6f with this alone.
+So: Phase 4 hypothesis is **supported under uniqueness stress**, but **not** on the original four-tier mix (where exact re-cycles inflated APC). Main-matrix “Optimizer ≈ APC” remains true for that workload; this probe explains *when* rewrite helps. Prefer reporting **both**, not replacing 6f with this alone.
 
-Quick histogram after copy-back:
+Histogram + bootstrap CI (after copy-back or on Aire):
 ```bash
+PYTHONPATH=. python -m src.eval.aggregate --probe-stats \
+  results/phase6/adv_sem_apc.jsonl \
+  results/phase6/adv_sem_optimizer.jsonl
+# also still useful:
 PYTHONPATH=. python -m src.eval.aggregate --jsonl \
   results/phase6/adv_sem_apc.jsonl \
   results/phase6/adv_sem_optimizer.jsonl
 ```
 
-### 9b. Multi-source uniqueness scale-up (ShareGPT + MOSS) — next
+### 9b. Multi-source uniqueness scale-up (ShareGPT + LMSYS) — done
 
-**Motivation:** Main 2k mix was too similar (exact re-cycles). Real traffic is often more unique. Adding ShareGPT+MOSS mined phrasings grows the unique-instruction pool for a larger adversarial probe.
+**Motivation:** Grow unique mined summarize instructions beyond LMSYS-only (§9). Same design: unique rules-matched summarize + one short shared doc; no exact repeats.
 
-**Pipeline on Aire** (after `git pull`):
+| Design choice | Value |
+|---------------|--------|
+| Workload | `workloads/phase6/adversarial_semantic_multi.jsonl` (**224** req) |
+| Sources in probe | ShareGPT **142**, LMSYS **82** |
+| MOSS | Scanned (50k); **0** English `summarize_3_bullets` rules-matched rows — omitted from this probe by yield, not by silent exclusion |
+| Cap | `--limit 400`; pool after uniqueness/rules = **224** |
+| Doc | same `doc_adversarial_short` (~795 chars); single-doc caveat as §9 |
+| Host | gpu010, job `6968011`, 2026-08-02 |
 
-```bash
-pip install -q datasets   # if needed
-PYTHONPATH=. python -m src.eval.fetch_raw_datasets --source all --max-rows 20000
-PYTHONPATH=. python -m src.eval.mine_phrasings --write
-# check ShareGPT/MOSS columns > 0:
-cat workloads/phase6/phrasings_coverage.md
+### Results
 
-PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 400 \
-  --probe-name adversarial_semantic_multi \
-  --out workloads/phase6/adversarial_semantic_multi.jsonl
-# inspect sources in *.meta.json
-```
+| System | n | TSR | mean TTFT ms | p50 lat ms | File | Cite? |
+|--------|---|-----|--------------|------------|------|-------|
+| apc | 224/224 | **0.110** | 52 | 1422 | `adv_sem_multi_apc.jsonl` | **OK** |
+| optimizer hold-off embed-off | 224/224 | **0.313** | 55 | 1424 | `adv_sem_multi_optimizer.jsonl` | **OK** |
 
-**Eval** (same design as §9; APC vs Optimizer only; cold between):
+**Gap:** Optimizer − APC = **+0.203** (0.313 vs 0.110) — ~**2.8×** APC; matches §9 (+0.207 on 83). Point estimate; run `--probe-stats` for CIs before treating as a headline beside 6f.
 
-```bash
-PYTHONPATH=. python -m src.eval.run --system apc \
-  --workload workloads/phase6/adversarial_semantic_multi.jsonl \
-  --concurrency 1 --out results/phase6/adv_sem_multi_apc.jsonl
+**Reading:** Larger ShareGPT+LMSYS uniqueness mix does **not** wash out the rewrite win. APC stays ~soft crumbs (TSR≈0.11); Optimizer still ~0.31 via canonical prefix over the shared doc. TTFT/p50 still ≈ APC (token-saving, not latency).
 
-# restart vLLM cold + proxy hold-off embed-off
-PYTHONPATH=. python -m src.eval.run --system optimizer \
-  --workload workloads/phase6/adversarial_semantic_multi.jsonl \
-  --concurrency 1 --out results/phase6/adv_sem_multi_optimizer.jsonl
-```
+**Dissertation takeaway (updated)**
 
-Still **mined only** — no invented paraphrases. Frame as sensitivity: “higher uniqueness mix,” not production Leeds logs.
+| Setting | Optimizer − APC (semantic) |
+|---------|----------------------------|
+| Main mix (c=1 ablation, §2.4) | **+0.014** (weak / noise) |
+| Uniqueness LMSYS-only (§9, n=83) | **+0.207** |
+| Uniqueness ShareGPT+LMSYS (§9b, n=224) | **+0.203** |
+
+Still: report **main matrix + uniqueness probes**, not replace 6f. Frame as sensitivity under higher uniqueness / no exact repeats — not production Leeds multi-doc traffic, and not a rewrite-breaking adversary.
 
