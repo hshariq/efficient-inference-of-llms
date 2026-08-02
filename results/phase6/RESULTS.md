@@ -90,6 +90,22 @@
 
 **Optimizer − APC on semantic only: +0.014.** No buried headline win in the aggregate gap. Burst per-tier still TODO (`aggregate --jsonl` on `burst_*.jsonl`).
 
+### 2.5 Why APC already has TSR 0.461 on “semantic” (important for write-up)
+
+Audited `c1_apc.jsonl` semantic tier (n=80). The **0.461 mean is bimodal**, not “APC matches varied phrasing”:
+
+| Bin (cached/prompt) | Count (APC) | Interpretation |
+|---------------------|------------:|----------------|
+| &lt;5% | 38 | Cold / crumb only (~16 toks) — instruction differs → **no** long prefix match |
+| 5–25% | 6 | Partial |
+| ≥75% | 36 | Near-full (~2000/2005) — **exact re-occurrence** of same phrasing+doc in the tier |
+
+- **Median** APC semantic ratio ≈ **0.05** (near zero); the **mean** is pulled up by exact repeats.
+- Optimizer cold floor is higher (~80 toks from canonical prefix vs ~16 crumbs) but the hot half is already saturated for both → aggregate gap stays ~+0.014.
+- So this is **not** primarily “APC matching the shared document mid-prompt despite different instructions” (classic APC is prefix-from-start; different instruction tokens break that). It **is** largely: the semantic tier **cycles a limited mined phrasing set**, so many “semantic” rows are exact duplicates of earlier ones → APC wins without rewrite.
+
+**Dissertation framing:** Phase 4 hypothesis (“shared instruction / different data = Optimizer win”) was **tested and only weakly supported** on this workload. Root cause leans toward **workload construction** (semantic tier not adversarial enough at token level), not a failed harness. Optional follow-up: semantic-only adversarial slice (highly varied mined instructions, **short** distinct docs, **no** exact re-cycles) before locking 6h–6j.
+
 ---
 
 ## 3. Full burst run log (all cells)
@@ -166,18 +182,20 @@ Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; ho
 
 1. Vanilla TSR=0 vs APC/Optimizer ~0.78 → prefix caching yields large token savings on this workload.
 2. Optimizer rewrite-only ≈ APC on **aggregate** TSR; not a large aggregate win over stock APC here.
-3. Hold raises TTFT (~+74 ms embed-off); does not raise TSR — co-arrival/fairness tool, not a TSR lever.
-4. MiniLM adds large latency, negligible TSR — rules cover catalogue on this mix.
-5. GPTCache highest TSR / lowest p50 via **answer** cache — different mechanism; quality tradeoff for 6h.
-6. c=1 per-tier: Optimizer semantic lift only **+1.4 pp** vs APC.
+3. On the designed win condition (semantic tier), Optimizer−APC is only **+0.014**; hypothesis weakly supported.
+4. APC’s semantic mean TSR ~0.46 is **bimodal** (median ~0.05): mostly crumbs on first-of-kind phrasing, near-full on **exact re-cycles** of mined strings — not proof that APC defeats paraphrase via mid-doc match.
+5. Hold raises TTFT; does not raise TSR.
+6. MiniLM adds large latency, negligible TSR.
+7. GPTCache is answer memoization — different mechanism.
+8. Strongest empirical contribution: **TSR vs TTFT decoupling** (vanilla vs APC/Optimizer).
 
 **Cannot say**
 
-1. Optimizer massively beats APC on TSR (data say otherwise).
-2. TTFT win for Optimizer/APC vs each other (bands similar; vanilla slower).
+1. Optimizer Box beats APC (data do not support this as a headline).
+2. TTFT win for Optimizer vs APC.
 3. APC `hit_rate=1.0` = 100% exact full-prompt hits.
 4. GPTCache is “better prefix caching.”
-5. Anything from warm-KV TSR≈0.995 runs.
+5. Warm-KV TSR≈0.995 runs.
 
 ---
 
@@ -215,9 +233,74 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 |------|--------|
 | 6a–6e scaffold / c=1 | Done |
 | **6f burst + hold=50** | **Done** |
-| Burst per-tier TSR | TODO (JSONLs on Aire → copy or run aggregate there) |
-| max_batch disposition counts @ hold=50 | TODO (grep `ttl` in hold-on JSONL) |
+| Explain semantic APC 0.461 | **Done** (§2.5 — bimodal / exact re-cycles) |
+| Burst per-tier TSR | TODO |
+| max_batch disposition counts @ hold=50 | TODO |
+| MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
+| **Optional: adversarial semantic-only probe** | **Workload ready** — run on Aire (see §9) |
 | 6h quality spot-check | Pending |
 | 6i six charts + captions | Pending |
 | 6j aggregate dissertation tables | Pending |
-| Optional later | Wider catalogue / ShareGPT+MOSS / semantic-heavy mix (sensitivity, not replacement) |
+
+### Recommended next experiment (before 6h–6j lock-in)
+
+**Not** a full matrix redo. One targeted probe — **§9**.
+
+---
+
+## 9. Adversarial semantic-only probe (ready to run)
+
+**Purpose:** Stress Phase 4 win condition without exact re-cycles that inflated APC semantic TSR in §2.5.
+
+| Design choice | Value |
+|---------------|--------|
+| Workload | `workloads/phase6/adversarial_semantic.jsonl` (**83** req) |
+| Meta | `adversarial_semantic.meta.json` |
+| Doc | `docs/doc_adversarial_short.txt` (~795 chars, shared) |
+| Instructions | Unique LMSYS-mined, **rules-matched** `summarize_3_bullets` only |
+| Exact repeats | **None** (deduped prompts) |
+| Builder | `python -m src.eval.build_adversarial_semantic` |
+
+**Systems (only two):** `apc` vs `optimizer` (hold **off**, embed **off**). Cold vLLM between runs.
+
+**How to read the outcome**
+
+| Result | Interpretation |
+|--------|----------------|
+| Optimizer TSR ≫ APC (APC median ~crumbs) | Hypothesis OK under stress; main matrix was workload-limited |
+| Still flat | Design insight: rewrite adds little even when adversarial; discuss honestly |
+
+**Also report:** histogram of `cached_tokens/prompt_tokens` (median + bins), not only mean TSR.
+
+### Aire commands
+
+```bash
+cd ~/efficient-inference-of-llms && git pull
+# rebuild if needed:
+PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 100
+
+# 1) APC on (start_on_gpu.sh), cold, probe PASS
+PYTHONPATH=. python -m src.eval.probe_cached_tokens
+PYTHONPATH=. python -m src.eval.run --system apc \
+  --workload workloads/phase6/adversarial_semantic.jsonl \
+  --concurrency 1 \
+  --out results/phase6/adv_sem_apc.jsonl
+
+# 2) restart vLLM cold + re-probe, then proxy hold-off embed-off
+OPTIMIZER_REWRITE_MODE=on OPTIMIZER_TTL_MODE=off OPTIMIZER_EMBEDDING_BACKEND=off \
+  bash src/proxy/start_proxy.sh
+PYTHONPATH=. python -m src.eval.run --system optimizer \
+  --workload workloads/phase6/adversarial_semantic.jsonl \
+  --concurrency 1 \
+  --out results/phase6/adv_sem_optimizer.jsonl
+```
+
+Prefer **c=1** so the first→later cache story is readable (no concurrent miss storm). Paste both summaries here.
+
+Quick local histogram after copy-back:
+```bash
+PYTHONPATH=. python -m src.eval.aggregate --jsonl \
+  results/phase6/adv_sem_apc.jsonl \
+  results/phase6/adv_sem_optimizer.jsonl
+```
+

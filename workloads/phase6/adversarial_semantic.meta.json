@@ -1,0 +1,9 @@
+{
+  "n": 83,
+  "n_candidates_rules_matched": 83,
+  "doc_id": "doc_adversarial_short",
+  "doc_chars": 795,
+  "unique_prompts": 83,
+  "exact_prompt_duplicates_dropped": 0,
+  "design": "unique mined summarize instructions + one short shared doc; no exact prompt repeats; rules-matched only (embed off)"
+}
