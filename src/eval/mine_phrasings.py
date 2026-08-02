@@ -104,23 +104,24 @@ def _extract_human(obj: object) -> str | None:
         v = obj.get(key)
         if isinstance(v, str) and v.strip():
             return v.strip()[:500]
-    # ShareGPT conversations
-    conv = obj.get("conversations") or obj.get("conversation")
+    # ShareGPT / MOSS conversations
+    conv = obj.get("conversations") or obj.get("conversation") or obj.get("chat")
     if isinstance(conv, list):
         for turn in conv:
             if isinstance(turn, str) and turn.strip():
-                # Some dumps store bare strings; treat first non-empty as human.
                 return turn.strip()[:500]
             if not isinstance(turn, dict):
                 continue
+            # MOSS YeungNLP: {"human": "...", "assistant": "..."}
+            if isinstance(turn.get("human"), str) and turn["human"].strip():
+                return turn["human"].strip()[:500]
             role = (turn.get("from") or turn.get("role") or "").lower()
             if role in {"human", "user"}:
                 v = turn.get("value") or turn.get("content")
                 if isinstance(v, str) and v.strip():
                     return v.strip()[:500]
-            # Fallback: first dict turn with text-like value
-            for k in ("value", "content", "text"):
-                v = turn.get(k) if isinstance(turn, dict) else None
+            for k in ("value", "content", "text", "human", "user", "query"):
+                v = turn.get(k)
                 if isinstance(v, str) and v.strip() and len(v.strip()) >= 12:
                     return v.strip()[:500]
     return None
