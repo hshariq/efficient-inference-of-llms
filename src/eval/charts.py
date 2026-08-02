@@ -91,6 +91,7 @@ def generate(
     ablation: list[dict],
     jsonl_rows: list[dict[str, Any]],
     out_dir: Path,
+    uniqueness: list[dict] | None = None,
 ) -> None:
     try:
         import matplotlib.pyplot as plt
@@ -255,10 +256,59 @@ def generate(
         "Visualises whether savings scale with document size (Phase 4 finding)."
     )
 
+    if uniqueness:
+        cap07 = _uniqueness_scale_chart(uniqueness, out_dir)
+        if cap07:
+            captions.append(cap07)
+
     cap_path = out_dir / "captions.txt"
     cap_path.write_text("\n\n".join(captions) + "\n", encoding="utf-8")
     print(f"wrote charts -> {out_dir}")
     print(f"captions -> {cap_path}")
+
+
+def _uniqueness_scale_chart(summaries: list[dict], out_dir: Path) -> str | None:
+    """Grouped bars: APC vs Optimizer TSR across uniqueness probe sizes."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    cells: dict[tuple[int, str], float] = {}
+    for s in summaries:
+        n = int(s.get("n") or 0)
+        sys = str(s.get("system") or "?").lower()
+        if sys.startswith("optimizer"):
+            sys = "optimizer"
+        if sys not in ("apc", "optimizer") or n <= 0:
+            continue
+        cells[(n, sys)] = float(s.get("tsr") or 0.0)
+
+    ns = sorted({n for n, _ in cells})
+    if len(ns) < 2:
+        print("WARN: uniqueness chart needs ≥2 probe sizes; skipping 07")
+        return None
+
+    apc = [cells.get((n, "apc"), 0.0) for n in ns]
+    opt = [cells.get((n, "optimizer"), 0.0) for n in ns]
+    x = np.arange(len(ns))
+    w = 0.35
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.bar(x - w / 2, apc, w, label="APC")
+    ax.bar(x + w / 2, opt, w, label="Optimizer")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"n={n}" for n in ns])
+    ax.set_ylabel("TSR")
+    ax.set_title("Uniqueness probes: TSR vs probe size")
+    ax.set_ylim(0, max(0.4, max(apc + opt) * 1.15))
+    ax.legend()
+    fig.tight_layout()
+    p = out_dir / "07_uniqueness_tsr_by_n.png"
+    fig.savefig(p, dpi=150)
+    plt.close(fig)
+    return (
+        f"{p.name}: Grouped bars of APC vs Optimizer TSR on uniqueness "
+        f"probes (n={', '.join(str(n) for n in ns)}). Shows the rewrite gap "
+        "holds as unique mined instructions scale; not the main four-tier mix."
+    )
 
 
 def main() -> None:
@@ -293,6 +343,13 @@ def main() -> None:
         required=True,
         help="Per-request JSONL files for box plot (4) and scatter (6)",
     )
+    ap.add_argument(
+        "--uniqueness-summaries",
+        nargs="*",
+        default=[],
+        help="Optional APC/Optimizer uniqueness probe summaries → chart 07 "
+        "(e.g. adv_sem_*, adv_sem_multi_*, adv_sem_xl_*)",
+    )
     ap.add_argument("--out-dir", default=str(CHART_DIR))
     args = ap.parse_args()
 
@@ -303,6 +360,11 @@ def main() -> None:
         ablation=_load_summaries([Path(s) for s in args.ablation_summaries]),
         jsonl_rows=_load_jsonl([Path(s) for s in args.jsonl]),
         out_dir=Path(args.out_dir),
+        uniqueness=(
+            _load_summaries([Path(s) for s in args.uniqueness_summaries])
+            if args.uniqueness_summaries
+            else None
+        ),
     )
 
 
