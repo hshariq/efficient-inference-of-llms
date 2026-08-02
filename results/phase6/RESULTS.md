@@ -183,7 +183,7 @@ Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; ho
 1. Vanilla TSR=0 vs APC/Optimizer ~0.78 → prefix caching yields large token savings on this workload.
 2. On the **main four-tier mix**, Optimizer rewrite-only ≈ APC on aggregate TSR; not a large aggregate win over stock APC there.
 3. On that mix’s semantic tier, Optimizer−APC is only **+0.014**; partly because semantic rows included exact re-cycles (§2.5).
-4. On a **uniqueness / no-exact-repeat** probe (unique mined instructions, short shared doc): APC TSR **0.108**, Optimizer **0.315** (**+0.207**); replicated ShareGPT+LMSYS n=224 (**+0.203**) — Phase 4 holds under that stress (§9/§9b). Prefer citing with bootstrap CIs once pasted.
+4. On **uniqueness / no-exact-repeat** probes: APC≈0.11–0.13 vs Optimizer≈0.30–0.32 (Δ **+0.18–0.21** across n=83/224/556); bootstrap 95% CIs **non-overlapping** on every scale (§9–9c).
 5. Hold raises TTFT; does not raise TSR on the main mix.
 6. MiniLM adds large latency, negligible TSR on the main mix.
 7. GPTCache is answer memoization — different mechanism.
@@ -236,18 +236,15 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | 6a–6e scaffold / c=1 | Done |
 | **6f burst + hold=50** | **Done** |
 | Explain semantic APC 0.461 | **Done** (§2.5 — bimodal / exact re-cycles) |
-| Burst per-tier TSR | TODO |
+| **Uniqueness probes §9–9c** | **Done** — mined only; n=83/224/556; Δ +0.21/+0.20/+0.18; CIs non-overlapping; no hand-authored padding |
+| Burst per-tier TSR | **Next** (aggregate `--jsonl` on burst_* files) |
 | max_batch disposition counts @ hold=50 | TODO |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
-| **Uniqueness probe (no exact repeats)** | **Done** — LMSYS n=83 +0.207; ShareGPT+LMSYS n=224 +0.203 (§9/§9b) |
-| **Probe CIs / histograms** | Run `aggregate --probe-stats` on Aire JSONLs; paste into §9 |
 | 6h quality spot-check | Pending |
 | 6i six charts + captions | Pending |
 | 6j aggregate dissertation tables | Pending |
 
-### Recommended next experiment (before 6h–6j lock-in)
-
-**Not** a full matrix redo. One targeted probe — **§9**.
+**Uniqueness family closed.** Do not hand-author paraphrases into §9 numbers. Optional later: separate labeled diagnostic only. When back: start with **burst per-tier TSR**, then max_batch counts → 6h → 6i → 6j.
 
 ---
 
@@ -311,18 +308,27 @@ Prefer **c=1** so the first→later cache story is readable (no concurrent miss 
 | apc | 83/83 | **0.108** | 52 | 1422 | 16 | `adv_sem_apc.jsonl` | **OK** (soft crumb) |
 | optimizer hold-off embed-off | 83/83 | **0.315** | 54 | 1424 | **0** | `adv_sem_optimizer.jsonl` | **OK** (cold) |
 
-**Gap:** Optimizer − APC = **+0.207** (0.315 vs 0.108) — ~**3×** APC’s TSR on this probe. Treat as a **point estimate** until `probe_stats` CIs are pasted (below).
+**Gap:** Optimizer − APC = **+0.207** (0.315 vs 0.108) — ~**3×** APC’s TSR on this probe.
 
-**APC reading:** TSR **0.108** vs ~0.46 mean on the old “semantic” tier — probe worked. Without exact re-cycles, APC mostly sees crumbs/shared-template tokens (~1.9k / 18k). Soft `call1=16`.
+**Uncertainty (bootstrap 95% CI over requests, 2000 resamples):**
 
-**Optimizer reading:** TSR **0.315** with cold `call1=0`. Rewrite unifies mined paraphrases onto a canonical prefix over the **same short doc**, so APC behind the proxy can reuse that shared span after the first request. TTFT/p50 ≈ APC (no speed win; token-saving win). Higher `prompt_tokens` (21.5k vs 18.1k) is expected — rewritten prompts include the canonical system prefix.
+| System | TSR | 95% CI | ratio median | p10 | p90 |
+|--------|-----|--------|--------------|-----|-----|
+| apc | 0.108 | **[0.098, 0.119]** | 0.080 | 0.066 | 0.164 |
+| optimizer | 0.315 | **[0.309, 0.322]** | 0.321 | 0.279 | 0.345 |
+
+CIs **do not overlap** — gap is not a small-n fluke.
+
+**APC reading:** TSR **0.108** vs ~0.46 mean on the old “semantic” tier — probe worked. Without exact re-cycles, APC mostly sees crumbs/shared-template tokens (~1.9k / 18k). Soft `call1=16`. Median per-request ratio **0.08** (crumb regime).
+
+**Optimizer reading:** TSR **0.315** with cold `call1=0`. Rewrite unifies mined paraphrases onto a canonical prefix over the **same short doc**, so APC behind the proxy can reuse that shared span after the first request. TTFT/p50 ≈ APC (no speed win; token-saving win). Higher `prompt_tokens` (21.5k vs 18.1k) is expected — rewritten prompts include the canonical system prefix. Median ratio **0.32**.
 
 **Dissertation takeaway from this probe**
 
 | Setting | Optimizer − APC (semantic) |
 |---------|----------------------------|
 | Main mix (c=1 ablation, §2.4) | **+0.014** (weak / noise) |
-| Uniqueness probe LMSYS-only (§9) | **+0.207** (clear; CI pending) |
+| Uniqueness probe LMSYS-only (§9) | **+0.207** (CIs non-overlapping) |
 
 So: Phase 4 hypothesis is **supported under uniqueness stress**, but **not** on the original four-tier mix (where exact re-cycles inflated APC). Main-matrix “Optimizer ≈ APC” remains true for that workload; this probe explains *when* rewrite helps. Prefer reporting **both**, not replacing 6f with this alone.
 
@@ -357,7 +363,16 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | apc | 224/224 | **0.110** | 52 | 1422 | `adv_sem_multi_apc.jsonl` | **OK** |
 | optimizer hold-off embed-off | 224/224 | **0.313** | 55 | 1424 | `adv_sem_multi_optimizer.jsonl` | **OK** |
 
-**Gap:** Optimizer − APC = **+0.203** (0.313 vs 0.110) — ~**2.8×** APC; matches §9 (+0.207 on 83). Point estimate; run `--probe-stats` for CIs before treating as a headline beside 6f.
+**Gap:** Optimizer − APC = **+0.203** (0.313 vs 0.110) — ~**2.8×** APC; matches §9 (+0.207 on 83).
+
+**Uncertainty:**
+
+| System | TSR | 95% CI | ratio median |
+|--------|-----|--------|--------------|
+| apc | 0.110 | **[0.104, 0.115]** | 0.081 |
+| optimizer | 0.313 | **[0.309, 0.316]** | 0.319 |
+
+CIs non-overlapping. Citeable beside §9.
 
 **Reading:** Larger ShareGPT+LMSYS uniqueness mix does **not** wash out the rewrite win. APC stays ~soft crumbs (TSR≈0.11); Optimizer still ~0.31 via canonical prefix over the shared doc. TTFT/p50 still ≈ APC (token-saving, not latency).
 
@@ -366,8 +381,41 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | Setting | Optimizer − APC (semantic) |
 |---------|----------------------------|
 | Main mix (c=1 ablation, §2.4) | **+0.014** (weak / noise) |
-| Uniqueness LMSYS-only (§9, n=83) | **+0.207** |
-| Uniqueness ShareGPT+LMSYS (§9b, n=224) | **+0.203** |
+| Uniqueness LMSYS-only (§9, n=83) | **+0.207** [CIs: APC 0.098–0.119 vs Opt 0.309–0.322] |
+| Uniqueness ShareGPT+LMSYS (§9b, n=224) | **+0.203** [APC 0.104–0.115 vs Opt 0.309–0.316] |
+| Uniqueness XL open-dump yield (§9c, n=556) | **+0.178** [APC 0.124–0.130 vs Opt 0.303–0.308] |
 
 Still: report **main matrix + uniqueness probes**, not replace 6f. Frame as sensitivity under higher uniqueness / no exact repeats — not production Leeds multi-doc traffic, and not a rewrite-breaking adversary.
+
+### 9c. XL uniqueness scale-up (open-dump yield ceiling) — done
+
+**Motivation:** Push unique rules-matched summarize pool without inventing paraphrases. Built with `--limit 1000`; yield capped at **556** (LMSYS 304 + ShareGPT 252) — practical upper bound of current dumps after tagger filter.
+
+| Design choice | Value |
+|---------------|--------|
+| Workload | `workloads/phase6/adversarial_semantic_xl.jsonl` (**556** req) |
+| Doc | same short shared `doc_adversarial_short` |
+| Host | gpu010, job `6968011`, 2026-08-02 |
+
+### Results
+
+| System | n | TSR | mean TTFT ms | p50 lat ms | File | Cite? |
+|--------|---|-----|--------------|------------|------|-------|
+| apc | 556/556 | **0.127** | 52 | 1422 | `adv_sem_xl_apc.jsonl` | **OK** |
+| optimizer hold-off embed-off | 556/556 | **0.305** | 54 | 1424 | `adv_sem_xl_optimizer.jsonl` | **OK** |
+
+**Gap:** Optimizer − APC = **+0.178** (0.305 vs 0.127). Still ~**2.4×** APC; effect holds at larger n. APC TSR edges up slightly vs §9/§9b (more shared chat/doc crumbs across a bigger unique set); Optimizer stays ~0.30.
+
+**Uncertainty:**
+
+| System | TSR | 95% CI | ratio median | p10 | p90 |
+|--------|-----|--------|--------------|-----|-----|
+| apc | 0.127 | **[0.124, 0.130]** | 0.139 | 0.074 | 0.159 |
+| optimizer | 0.305 | **[0.303, 0.308]** | 0.311 | 0.269 | 0.333 |
+
+CIs non-overlapping and **tighter** than §9 (larger n). Safe to cite with main matrix as the uniqueness-stress story.
+
+**Optional ablations on XL (not headline):** hold-on → same TSR **0.305**, mean TTFT ~**105** ms (latency cost only). `OPTIMIZER_EMBEDDING_BACKEND=minilm` → same TSR/tokens/TTFT as embed-off (fallback never fires: all rows already rules-matched). Do **not** hand-author paraphrases to inflate n; 556 = open-dump yield ceiling.
+
+**Do not fetch more dumps** for this probe family unless a new English summarize source appears; n=556 is the yield story, not a failed 2k target.
 
