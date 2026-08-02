@@ -281,10 +281,10 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | max_batch disposition counts @ hold=50 | **Done** (§2.7) — hold_window 1477 / skip 515 / max_batch 8 |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
 | 6h quality spot-check | **Done** (§2.8) — stratified 12; rewrite OK / lone_wolf bypass OK |
-| 6i charts + captions | **Fix in progress** — drop stacked 05; lock **six** figures (01–04, 05 uniqueness, 06 scatter) |
-| 6j aggregate dissertation tables | Pending after 6i re-lock |
+| 6i charts + captions | **Done** — six figures: 01–04, **05 uniqueness**, 06 scatter (stacked 05 dropped) |
+| 6j aggregate dissertation tables | **Next** |
 
-**6i note:** Chart **07** was intentional (`--uniqueness-summaries`), not a leftover. Peer review correctly rejected stacked **05** (additive “semantic + TTL” mislabels the data). Regenerating with uniqueness as **05**; delete `05_ablation_stacked.png` / `07_*.png`.
+**6i locked:** methods say **six** charts; artefacts match (`05_uniqueness_tsr_by_n.png`; no stacked/07). **Re-fix chart 03** before citing: old version defaulted missing c=1/burst endpoints to 0 ms (fake cliffs). Script now requires both endpoints; regenerate with matched pairs (include hold-on in `--ttft-burst`).
 
 ---
 

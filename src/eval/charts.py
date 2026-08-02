@@ -165,27 +165,46 @@ def generate(
     )
 
     # --- 3 TTFT line across scenarios ---
+    # Only plot systems present in BOTH inputs. Missing side used to default to
+    # 0 ms and draw fake cliffs (e.g. optimizer only in burst, hold only in c=1).
     fig, ax = plt.subplots(figsize=(7, 4))
     c1_by = _by_system(ttft_c1)
     burst_by = _by_system(ttft_burst)
-    line_systems = sorted(set(c1_by) | set(burst_by))
+    line_systems = sorted(set(c1_by) & set(burst_by))
+    skipped = sorted((set(c1_by) | set(burst_by)) - set(line_systems))
+    if skipped:
+        print(
+            "WARN: chart 03 skipped systems missing c=1 or burst TTFT: "
+            + ", ".join(skipped)
+        )
     xs = [0, 1]
     for sys in line_systems:
-        y0 = float(c1_by.get(sys, {}).get("mean_ttft_ms") or 0.0)
-        y1 = float(burst_by.get(sys, {}).get("mean_ttft_ms") or 0.0)
+        y0 = float(c1_by[sys].get("mean_ttft_ms") or 0.0)
+        y1 = float(burst_by[sys].get("mean_ttft_ms") or 0.0)
         ax.plot(xs, [y0, y1], marker="o", label=sys)
-    ax.set_xticks(xs)
-    ax.set_xticklabels(["concurrency=1", "burst"])
-    ax.set_ylabel("Mean client-side TTFT (ms)")
-    ax.set_title("TTFT across load scenarios (cost framing)")
-    ax.legend(fontsize=8)
+    if not line_systems:
+        ax.text(
+            0.5,
+            0.5,
+            "No systems with both c=1 and burst TTFT",
+            ha="center",
+            va="center",
+        )
+        ax.set_axis_off()
+    else:
+        ax.set_xticks(xs)
+        ax.set_xticklabels(["concurrency=1", "burst"])
+        ax.set_ylabel("Mean client-side TTFT (ms)")
+        ax.set_title("TTFT across load scenarios (cost framing)")
+        ax.legend(fontsize=8)
     fig.tight_layout()
     p = out_dir / "03_ttft_across_scenarios.png"
     fig.savefig(p, dpi=150)
     plt.close(fig)
     captions.append(
-        f"{p.name}: Line chart of mean client-side TTFT from concurrency=1 to burst. "
-        "Shows hold-mode latency cost under load; not framed as a speed win."
+        f"{p.name}: Line chart of mean client-side TTFT from concurrency=1 to burst "
+        "(systems with both endpoints only). Cost framing under load — not a speed win. "
+        "Hold cost: compare optimizer vs optimizer_hold when both pairs are supplied."
     )
 
     # --- 4 box plot latency ---
