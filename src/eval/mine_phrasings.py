@@ -43,56 +43,81 @@ LONE_EXCLUDE = re.compile(
 )
 
 
+def _iter_jsonl(path: Path, source: str) -> list[tuple[str, str, str]]:
+    """Parse JSONL one line at a time — never abort the whole file on one bad row."""
+    out: list[tuple[str, str, str]] = []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError as exc:
+        print(f"WARN: cannot read {path}: {exc}")
+        return out
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        text = _extract_human(obj)
+        if text:
+            out.append((source, f"{path.name}:{i}", text))
+    return out
+
+
 def _iter_texts() -> list[tuple[str, str, str]]:
     """Yield (source, mine_id, text) from local raw dumps."""
     out: list[tuple[str, str, str]] = []
     if not RAW.exists():
         return out
 
-    for p in RAW.joinpath("sharegpt").glob("**/*") if (RAW / "sharegpt").exists() else []:
-        if p.suffix.lower() not in {".json", ".jsonl"}:
-            continue
-        try:
-            if p.suffix == ".jsonl":
-                for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines()):
-                    if not line.strip():
-                        continue
-                    obj = json.loads(line)
-                    text = _extract_human(obj)
-                    if text:
-                        out.append(("sharegpt", f"{p.name}:{i}", text))
-            else:
-                data = json.loads(p.read_text(encoding="utf-8", errors="ignore"))
+    sharegpt_dir = RAW / "sharegpt"
+    if sharegpt_dir.exists():
+        for p in sorted(sharegpt_dir.glob("**/*")):
+            if p.suffix.lower() == ".jsonl":
+                chunk = _iter_jsonl(p, "sharegpt")
+                print(f"sharegpt scan {p.name}: extracted {len(chunk)} texts")
+                out.extend(chunk)
+            elif p.suffix.lower() == ".json":
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8", errors="ignore"))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"WARN: skip {p}: {exc}")
+                    continue
                 if isinstance(data, list):
                     for i, obj in enumerate(data):
                         text = _extract_human(obj)
                         if text:
                             out.append(("sharegpt", f"{p.name}:{i}", text))
-        except Exception:  # noqa: BLE001
-            continue
 
     for sub, source in (("lmsys", "lmsys"), ("moss", "moss")):
         d = RAW / sub
         if not d.exists():
             continue
-        for p in d.glob("**/*"):
-            if p.suffix.lower() not in {".json", ".jsonl", ".txt"}:
-                continue
-            try:
-                if p.suffix == ".txt":
-                    for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines()):
+        for p in sorted(d.glob("**/*")):
+            if p.suffix.lower() == ".txt":
+                try:
+                    for i, line in enumerate(
+                        p.read_text(encoding="utf-8", errors="ignore").splitlines()
+                    ):
                         if line.strip():
                             out.append((source, f"{p.name}:{i}", line.strip()[:500]))
-                elif p.suffix == ".jsonl":
-                    for i, line in enumerate(p.read_text(encoding="utf-8", errors="ignore").splitlines()):
-                        if not line.strip():
-                            continue
-                        obj = json.loads(line)
+                except OSError as exc:
+                    print(f"WARN: skip {p}: {exc}")
+            elif p.suffix.lower() == ".jsonl":
+                chunk = _iter_jsonl(p, source)
+                print(f"{source} scan {p.name}: extracted {len(chunk)} texts")
+                out.extend(chunk)
+            elif p.suffix.lower() == ".json":
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8", errors="ignore"))
+                except Exception as exc:  # noqa: BLE001
+                    print(f"WARN: skip {p}: {exc}")
+                    continue
+                if isinstance(data, list):
+                    for i, obj in enumerate(data):
                         text = _extract_human(obj)
                         if text:
                             out.append((source, f"{p.name}:{i}", text))
-            except Exception:  # noqa: BLE001
-                continue
     return out
 
 
