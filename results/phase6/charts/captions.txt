@@ -1,0 +1,13 @@
+01_tsr_by_system.png: Bar chart of TSR per system (primary metric). Not a TTFT comparison.
+
+02_hitrate_vs_tsr.png: Grouped bars contrasting hit rate with TSR (SCALM vanity-metric argument).
+
+03_ttft_across_scenarios.png: Line chart of mean client-side TTFT from concurrency=1 to burst. Shows hold-mode latency cost under load; not framed as a speed win.
+
+04_latency_boxplot.png: Box plot of per-request latency (burst JSONL). Supports TTL/starvation tail-latency discussion better than three adjacent bars.
+
+05_ablation_stacked.png: Stacked TSR breakdown (SCALM Fig. 8 style): vanilla floor, semantic-only delta (optimizer - vanilla), TTL add-on (hold - semantic), with APC/GPTCache as reference single segments.
+
+06_tsr_vs_prompt_tokens.png: Scatter of per-request TSR vs prompt tokens, coloured by system. Visualises whether savings scale with document size (Phase 4 finding).
+
+07_uniqueness_tsr_by_n.png: Grouped bars of APC vs Optimizer TSR on uniqueness probes (n=83, 224, 556). Shows the rewrite gap holds as unique mined instructions scale; not the main four-tier mix.
