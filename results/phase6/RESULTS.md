@@ -281,10 +281,10 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | max_batch disposition counts @ hold=50 | **Done** (§2.7) — hold_window 1477 / skip 515 / max_batch 8 |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
 | 6h quality spot-check | **Done** (§2.8) — stratified 12; rewrite OK / lone_wolf bypass OK |
-| 6i charts + captions | **Done** — `results/phase6/charts/01–06_*.png` + `captions.txt`; optional **07** uniqueness scale |
-| 6j aggregate dissertation tables | **Next** |
+| 6i charts + captions | **Fix in progress** — drop stacked 05; lock **six** figures (01–04, 05 uniqueness, 06 scatter) |
+| 6j aggregate dissertation tables | Pending after 6i re-lock |
 
-**6i coverage:** charts 1–6 = main **2k burst** (+ c=1 for TTFT line + stacked ablation). They do **not** include uniqueness probes — add chart **07** with `--uniqueness-summaries` after `git pull`. **Next:** 6j tables.
+**6i note:** Chart **07** was intentional (`--uniqueness-summaries`), not a leftover. Peer review correctly rejected stacked **05** (additive “semantic + TTL” mislabels the data). Regenerating with uniqueness as **05**; delete `05_ablation_stacked.png` / `07_*.png`.
 
 ---
 

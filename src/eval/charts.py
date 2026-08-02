@@ -2,19 +2,23 @@
 """
 Generate Phase 6 dissertation charts (6 charts, mixed types).
 
-  1 bar          — TSR by system                 (--summaries)
+  1 bar           — TSR by system                 (--summaries)
   2 grouped bar   — Hit rate vs TSR               (--summaries)
   3 line          — TTFT across load scenarios    (--ttft-c1 + --ttft-burst)
   4 box plot      — Latency distribution          (--jsonl burst runs)
-  5 stacked bar   — Ablation TSR breakdown        (--ablation-summaries)
+  5 grouped bar   — Uniqueness probe TSR by n     (--uniqueness-summaries)
   6 scatter       — prompt tokens vs per-req TSR  (--jsonl)
+
+Chart 5 used to be a SCALM-style stacked “semantic + TTL” breakdown; that
+misattributes APC savings to rewrite and implies hold raises TSR (false on
+this workload). Uniqueness scale-up replaces it.
 
 Example:
   PYTHONPATH=. python -m src.eval.charts \\
-    --summaries results/phase6/burst_vanilla.summary.json ... \\
+    --summaries results/phase6/burst_*.summary.json \\
     --ttft-c1 results/phase6/c1_*.summary.json \\
     --ttft-burst results/phase6/burst_*.summary.json \\
-    --ablation-summaries results/phase6/ablation_*.summary.json \\
+    --uniqueness-summaries results/phase6/adv_sem*.summary.json \\
     --jsonl results/phase6/burst_*.jsonl
 """
 
@@ -49,38 +53,58 @@ def _by_system(summaries: list[dict]) -> dict[str, dict]:
     return {str(s.get("system", "?")): s for s in summaries}
 
 
-def _stacked_ablation_parts(
-    ablation: list[dict],
-) -> tuple[list[str], list[float], list[float], list[float]]:
-    """
-    SCALM-style stacked TSR breakdown.
+def _uniqueness_scale_chart(summaries: list[dict], out_dir: Path) -> str:
+    """Grouped bars: APC vs Optimizer TSR across uniqueness probe sizes → 05."""
+    import matplotlib.pyplot as plt
+    import numpy as np
 
-    Columns:
-      vanilla | apc | gptcache | optimizer (semantic) | optimizer_hold (+TTL)
+    cells: dict[tuple[int, str], float] = {}
+    for s in summaries:
+        n = int(s.get("n") or 0)
+        sys = str(s.get("system") or "?").lower()
+        if sys.startswith("optimizer"):
+            sys = "optimizer"
+        if sys not in ("apc", "optimizer") or n <= 0:
+            continue
+        cells[(n, sys)] = float(s.get("tsr") or 0.0)
 
-    Segments:
-      floor     = vanilla TSR under optimizer columns (shared baseline floor)
-      mid       = APC full / GPTCache full / semantic delta (optimizer - vanilla)
-      ttl       = hold add-on (optimizer_hold - optimizer)
-    """
-    by = _by_system(ablation)
-    vanilla = float(by.get("vanilla", {}).get("tsr") or 0.0)
-    opt = float(by.get("optimizer", {}).get("tsr") or 0.0)
-    hold = float(by.get("optimizer_hold", {}).get("tsr") or 0.0)
-    apc = float(by.get("apc", {}).get("tsr") or 0.0)
-    gpt = float(by.get("gptcache", {}).get("tsr") or 0.0)
+    ns = sorted({n for n, _ in cells})
+    if len(ns) < 2:
+        raise SystemExit(
+            "uniqueness chart needs ≥2 probe sizes in --uniqueness-summaries "
+            "(expected n≈83, 224, 556)"
+        )
 
-    labels = [
-        "vanilla",
-        "apc",
-        "gptcache",
-        "optimizer\n(semantic)",
-        "optimizer_hold\n(+TTL)",
-    ]
-    floor = [vanilla, 0.0, 0.0, vanilla, vanilla]
-    mid = [0.0, apc, gpt, max(0.0, opt - vanilla), max(0.0, opt - vanilla)]
-    ttl = [0.0, 0.0, 0.0, 0.0, max(0.0, hold - opt)]
-    return labels, floor, mid, ttl
+    apc = [cells.get((n, "apc"), 0.0) for n in ns]
+    opt = [cells.get((n, "optimizer"), 0.0) for n in ns]
+    x = np.arange(len(ns))
+    w = 0.35
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.bar(x - w / 2, apc, w, label="APC")
+    ax.bar(x + w / 2, opt, w, label="Optimizer")
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"n={n}" for n in ns])
+    ax.set_ylabel("TSR")
+    ax.set_title("Uniqueness probes: TSR vs probe size")
+    ax.set_ylim(0, max(0.4, max(apc + opt) * 1.15))
+    ax.legend()
+    fig.tight_layout()
+    p = out_dir / "05_uniqueness_tsr_by_n.png"
+    fig.savefig(p, dpi=150)
+    plt.close(fig)
+    # Remove superseded stacked / old 07 filenames if present
+    for stale in (
+        out_dir / "05_ablation_stacked.png",
+        out_dir / "07_uniqueness_tsr_by_n.png",
+    ):
+        if stale.exists():
+            stale.unlink()
+    return (
+        f"{p.name}: Grouped bars of APC vs Optimizer TSR on uniqueness "
+        f"probes (n={', '.join(str(n) for n in ns)}). Rewrite gap holds as "
+        "unique mined instructions scale; not the main four-tier mix. "
+        "Replaces the old stacked ‘semantic+TTL’ chart (hold does not raise TSR)."
+    )
 
 
 def generate(
@@ -88,10 +112,9 @@ def generate(
     summaries: list[dict],
     ttft_c1: list[dict],
     ttft_burst: list[dict],
-    ablation: list[dict],
+    uniqueness: list[dict],
     jsonl_rows: list[dict[str, Any]],
     out_dir: Path,
-    uniqueness: list[dict] | None = None,
 ) -> None:
     try:
         import matplotlib.pyplot as plt
@@ -136,8 +159,9 @@ def generate(
     fig.savefig(p, dpi=150)
     plt.close(fig)
     captions.append(
-        f"{p.name}: Grouped bars contrasting hit rate with TSR "
-        "(SCALM vanity-metric argument)."
+        f"{p.name}: Grouped bars contrasting hit rate with TSR. "
+        "APC/Optimizer hit_rate≈1.0 is a weak ‘any cache’ signal; GPTCache "
+        "hit_rate is real answer-cache hits (SCALM vanity-metric argument)."
     )
 
     # --- 3 TTFT line across scenarios ---
@@ -197,28 +221,8 @@ def generate(
         "Supports TTL/starvation tail-latency discussion better than three adjacent bars."
     )
 
-    # --- 5 stacked ablation ---
-    fig, ax = plt.subplots(figsize=(8, 4))
-    labels, floor, mid, ttl = _stacked_ablation_parts(ablation)
-    x = np.arange(len(labels))
-    ax.bar(x, floor, label="vanilla floor")
-    ax.bar(x, mid, bottom=floor, label="APC / GPTCache / semantic delta")
-    bottom2 = [a + b for a, b in zip(floor, mid)]
-    ax.bar(x, ttl, bottom=bottom2, label="TTL hold add-on")
-    ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=15)
-    ax.set_ylabel("TSR")
-    ax.set_title("Ablation TSR breakdown (stacked)")
-    ax.legend(fontsize=8)
-    fig.tight_layout()
-    p = out_dir / "05_ablation_stacked.png"
-    fig.savefig(p, dpi=150)
-    plt.close(fig)
-    captions.append(
-        f"{p.name}: Stacked TSR breakdown (SCALM Fig. 8 style): vanilla floor, "
-        "semantic-only delta (optimizer - vanilla), TTL add-on (hold - semantic), "
-        "with APC/GPTCache as reference single segments."
-    )
+    # --- 5 uniqueness scale (replaces stacked semantic+TTL) ---
+    captions.append(_uniqueness_scale_chart(uniqueness, out_dir))
 
     # --- 6 scatter prompt tokens vs per-request TSR ---
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -256,59 +260,10 @@ def generate(
         "Visualises whether savings scale with document size (Phase 4 finding)."
     )
 
-    if uniqueness:
-        cap07 = _uniqueness_scale_chart(uniqueness, out_dir)
-        if cap07:
-            captions.append(cap07)
-
     cap_path = out_dir / "captions.txt"
     cap_path.write_text("\n\n".join(captions) + "\n", encoding="utf-8")
     print(f"wrote charts -> {out_dir}")
     print(f"captions -> {cap_path}")
-
-
-def _uniqueness_scale_chart(summaries: list[dict], out_dir: Path) -> str | None:
-    """Grouped bars: APC vs Optimizer TSR across uniqueness probe sizes."""
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    cells: dict[tuple[int, str], float] = {}
-    for s in summaries:
-        n = int(s.get("n") or 0)
-        sys = str(s.get("system") or "?").lower()
-        if sys.startswith("optimizer"):
-            sys = "optimizer"
-        if sys not in ("apc", "optimizer") or n <= 0:
-            continue
-        cells[(n, sys)] = float(s.get("tsr") or 0.0)
-
-    ns = sorted({n for n, _ in cells})
-    if len(ns) < 2:
-        print("WARN: uniqueness chart needs ≥2 probe sizes; skipping 07")
-        return None
-
-    apc = [cells.get((n, "apc"), 0.0) for n in ns]
-    opt = [cells.get((n, "optimizer"), 0.0) for n in ns]
-    x = np.arange(len(ns))
-    w = 0.35
-    fig, ax = plt.subplots(figsize=(7, 4))
-    ax.bar(x - w / 2, apc, w, label="APC")
-    ax.bar(x + w / 2, opt, w, label="Optimizer")
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"n={n}" for n in ns])
-    ax.set_ylabel("TSR")
-    ax.set_title("Uniqueness probes: TSR vs probe size")
-    ax.set_ylim(0, max(0.4, max(apc + opt) * 1.15))
-    ax.legend()
-    fig.tight_layout()
-    p = out_dir / "07_uniqueness_tsr_by_n.png"
-    fig.savefig(p, dpi=150)
-    plt.close(fig)
-    return (
-        f"{p.name}: Grouped bars of APC vs Optimizer TSR on uniqueness "
-        f"probes (n={', '.join(str(n) for n in ns)}). Shows the rewrite gap "
-        "holds as unique mined instructions scale; not the main four-tier mix."
-    )
 
 
 def main() -> None:
@@ -332,10 +287,11 @@ def main() -> None:
         help="Burst summaries (chart 3 right point), one per system",
     )
     ap.add_argument(
-        "--ablation-summaries",
+        "--uniqueness-summaries",
         nargs="+",
         required=True,
-        help="Ablation cells for stacked chart 5 (must include vanilla/optimizer/optimizer_hold ideally)",
+        help="APC/Optimizer uniqueness probe summaries → chart 5 "
+        "(adv_sem / multi / xl)",
     )
     ap.add_argument(
         "--jsonl",
@@ -344,11 +300,10 @@ def main() -> None:
         help="Per-request JSONL files for box plot (4) and scatter (6)",
     )
     ap.add_argument(
-        "--uniqueness-summaries",
+        "--ablation-summaries",
         nargs="*",
         default=[],
-        help="Optional APC/Optimizer uniqueness probe summaries → chart 07 "
-        "(e.g. adv_sem_*, adv_sem_multi_*, adv_sem_xl_*)",
+        help="Deprecated/ignored (old stacked chart 5 removed)",
     )
     ap.add_argument("--out-dir", default=str(CHART_DIR))
     args = ap.parse_args()
@@ -357,14 +312,9 @@ def main() -> None:
         summaries=_load_summaries([Path(s) for s in args.summaries]),
         ttft_c1=_load_summaries([Path(s) for s in args.ttft_c1]),
         ttft_burst=_load_summaries([Path(s) for s in args.ttft_burst]),
-        ablation=_load_summaries([Path(s) for s in args.ablation_summaries]),
+        uniqueness=_load_summaries([Path(s) for s in args.uniqueness_summaries]),
         jsonl_rows=_load_jsonl([Path(s) for s in args.jsonl]),
         out_dir=Path(args.out_dir),
-        uniqueness=(
-            _load_summaries([Path(s) for s in args.uniqueness_summaries])
-            if args.uniqueness_summaries
-            else None
-        ),
     )
 
 

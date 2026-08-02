@@ -88,8 +88,10 @@ Six charts, mixed types (not five identical bars):
 | 2 | Hit rate vs TSR | grouped bar | `--summaries` |
 | 3 | TTFT across load scenarios | **line** (c=1 → burst) | `--ttft-c1` + `--ttft-burst` |
 | 4 | Latency distribution | **box plot** | `--jsonl` (burst) |
-| 5 | Ablation TSR breakdown | **stacked bar** | `--ablation-summaries` |
+| 5 | Uniqueness probe TSR by n | **grouped bar** | `--uniqueness-summaries` |
 | 6 | TSR vs prompt tokens | **scatter** | `--jsonl` |
+
+**Dropped:** old SCALM-style stacked “semantic delta + TTL add-on” chart — mislabels APC savings as rewrite and implies hold raises TSR (false here). Story told by chart 1 + chart 5 + §2.6 instead.
 
 matplotlib; one image + 1–2 sentence caption each (`captions.txt`).
 
