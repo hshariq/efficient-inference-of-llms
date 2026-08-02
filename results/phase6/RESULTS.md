@@ -115,6 +115,21 @@ From `burst_optimizer_holdon_embedoff.jsonl` (`ttl` header field):
 
 **Takeaway:** Hold is active on most requests; `max_batch` is rare at this mix/concurrency. Cite as Phase 5 behaviour evidence, not a TSR lever (TSR unchanged vs hold-off).
 
+### 2.8 Quality spot-check (6h) — done
+
+Artefact: `results/phase6/quality_spotcheck.md`  
+Compare: `burst_vanilla.jsonl` vs `burst_optimizer_holdoff_embedoff.jsonl`  
+Sample: **12** stratified (3× exact / semantic / best_of_n / lone_wolf). Not BLEU/ROUGE.
+
+| Observation | Detail |
+|-------------|--------|
+| Catalogue tiers | `rewrite` + correct `catalogue_task` (e.g. `summarize_3_bullets`); both sides still produce on-task summaries / bullets |
+| Surface form | Wording differs (canonical bullets vs vanilla’s freer framing) — expected under rewrite; **task meaning** looks intact in this sample |
+| Lone wolf | `bypass` / `unknown`; outputs ≈ vanilla (identity-theft, geometry nearly identical) |
+| Semantic quirk | On `sem-1001` / `sem-1002`, vanilla sometimes **misreads** the mined instruction as a meta “evaluate this summary” ask; Optimizer’s canonical rewrite still summarizes the doc. Spot-check note only — not a formal quality win claim |
+
+**Cite as:** informal confirmation that rewrite does not obviously break catalogue tasks and correctly bypasses lone_wolf. **Cannot say:** Optimizer answers are proven better/equal by automatic metrics.
+
 ### 2.5 Why APC already has TSR 0.461 on “semantic” (important for write-up)
 
 Audited `c1_apc.jsonl` semantic tier (n=80). The **0.461 mean is bimodal**, not “APC matches varied phrasing”:
@@ -265,11 +280,11 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | Burst per-tier TSR | **Done** (§2.6) — semantic Opt−APC **+0.011** |
 | max_batch disposition counts @ hold=50 | **Done** (§2.7) — hold_window 1477 / skip 515 / max_batch 8 |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
-| 6h quality spot-check | **Next** |
-| 6i six charts + captions | Pending |
+| 6h quality spot-check | **Done** (§2.8) — stratified 12; rewrite OK / lone_wolf bypass OK |
+| 6i six charts + captions | **Next** |
 | 6j aggregate dissertation tables | Pending |
 
-**Next:** 6h quality spot-check → 6i charts → 6j tables.
+**Next:** 6i charts → 6j tables.
 
 ---
 
