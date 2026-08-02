@@ -89,9 +89,11 @@ Six charts, mixed types (not five identical bars):
 | 3 | TTFT across load scenarios | **line** (c=1 → burst) | `--ttft-c1` + `--ttft-burst` |
 | 4 | Latency distribution | **box plot** | `--jsonl` (burst) |
 | 5 | Uniqueness probe TSR by n | **grouped bar** | `--uniqueness-summaries` |
-| 6 | TSR vs prompt tokens | **scatter** | `--jsonl` |
+| 6 | Per-request TSR distribution | **faceted histogram** | `--jsonl` |
 
 **Dropped:** old SCALM-style stacked “semantic delta + TTL add-on” chart — mislabels APC savings as rewrite and implies hold raises TSR (false here). Story told by chart 1 + chart 5 + §2.6 instead.
+
+**Also replaced:** crowded “TSR vs prompt tokens” scatter — hard to read; faceted TSR histograms show bimodality (crumbs vs near-full hits) more honestly.
 
 matplotlib; one image + 1–2 sentence caption each (`captions.txt`).
 

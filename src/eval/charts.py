@@ -7,7 +7,7 @@ Generate Phase 6 dissertation charts (6 charts, mixed types).
   3 line          — TTFT across load scenarios    (--ttft-c1 + --ttft-burst)
   4 box plot      — Latency distribution          (--jsonl burst runs)
   5 grouped bar   — Uniqueness probe TSR by n     (--uniqueness-summaries)
-  6 scatter       — prompt tokens vs per-req TSR  (--jsonl)
+  6 histograms    — Per-request TSR distribution  (--jsonl)
 
 Chart 5 used to be a SCALM-style stacked “semantic + TTL” breakdown; that
 misattributes APC savings to rewrite and implies hold raises TSR (false on
@@ -243,9 +243,8 @@ def generate(
     # --- 5 uniqueness scale (replaces stacked semantic+TTL) ---
     captions.append(_uniqueness_scale_chart(uniqueness, out_dir))
 
-    # --- 6 scatter prompt tokens vs per-request TSR ---
-    fig, ax = plt.subplots(figsize=(7, 4))
-    by_sys_pts: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    # --- 6 per-request TSR distribution (replaces crowded size scatter) ---
+    by_sys_ratio: dict[str, list[float]] = defaultdict(list)
     for row in jsonl_rows:
         if row.get("disposition") == "error":
             continue
@@ -253,30 +252,50 @@ def generate(
         ct = float(row.get("cached_tokens") or 0)
         if pt <= 0:
             continue
-        by_sys_pts[str(row.get("system") or "?")].append((pt, ct / pt))
-    plotted = False
-    for sys, pts in sorted(by_sys_pts.items()):
-        if not pts:
-            continue
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        ax.scatter(xs, ys, s=12, alpha=0.5, label=sys)
-        plotted = True
-    if not plotted:
+        by_sys_ratio[str(row.get("system") or "?")].append(ct / pt)
+
+    systems_r = sorted(by_sys_ratio)
+    if not systems_r:
+        fig, ax = plt.subplots(figsize=(7, 4))
         ax.text(0.5, 0.5, "No token samples in --jsonl", ha="center", va="center")
         ax.set_axis_off()
+        p = out_dir / "06_tsr_distribution.png"
+        fig.savefig(p, dpi=150)
+        plt.close(fig)
     else:
-        ax.set_xlabel("Prompt tokens (per request)")
-        ax.set_ylabel("Per-request TSR (cached/prompt)")
-        ax.set_title("TSR vs document/prompt size")
-        ax.legend(fontsize=8, markerscale=2)
-    fig.tight_layout()
-    p = out_dir / "06_tsr_vs_prompt_tokens.png"
-    fig.savefig(p, dpi=150)
-    plt.close(fig)
+        n = len(systems_r)
+        ncols = 3 if n >= 3 else n
+        nrows = int(np.ceil(n / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(4 * ncols, 3.2 * nrows), sharex=True)
+        flat = np.atleast_1d(axes).ravel()
+        bins = np.linspace(0.0, 1.0, 21)
+        for ax, sys in zip(flat, systems_r):
+            vals = by_sys_ratio[sys]
+            ax.hist(vals, bins=bins, color="C0", edgecolor="white", linewidth=0.4)
+            ax.axvline(float(np.median(vals)), color="C3", linestyle="--", linewidth=1.2, label="median")
+            ax.set_title(sys, fontsize=10)
+            ax.set_xlim(0.0, 1.0)
+            ax.set_ylabel("requests")
+        for ax in flat[len(systems_r) :]:
+            ax.set_axis_off()
+        for ax in flat[: len(systems_r)]:
+            ax.set_xlabel("Per-request TSR (cached/prompt)")
+        # one legend on first panel
+        flat[0].legend(fontsize=8, loc="upper right")
+        fig.suptitle("Per-request TSR distribution by system (burst)", fontsize=12, y=1.01)
+        fig.tight_layout()
+        p = out_dir / "06_tsr_distribution.png"
+        fig.savefig(p, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+    stale_scatter = out_dir / "06_tsr_vs_prompt_tokens.png"
+    if stale_scatter.exists():
+        stale_scatter.unlink()
+
     captions.append(
-        f"{p.name}: Scatter of per-request TSR vs prompt tokens, coloured by system. "
-        "Visualises whether savings scale with document size (Phase 4 finding)."
+        f"{p.name}: Faceted histograms of per-request TSR (cached/prompt) by system. "
+        "Shows the real shape of savings — often bimodal (near-miss crumbs vs near-full "
+        "exact re-use) — clearer than a multi-system size scatter. Dashed = median."
     )
 
     cap_path = out_dir / "captions.txt"
@@ -316,7 +335,7 @@ def main() -> None:
         "--jsonl",
         nargs="+",
         required=True,
-        help="Per-request JSONL files for box plot (4) and scatter (6)",
+        help="Per-request JSONL files for box plot (4) and TSR histograms (6)",
     )
     ap.add_argument(
         "--ablation-summaries",
