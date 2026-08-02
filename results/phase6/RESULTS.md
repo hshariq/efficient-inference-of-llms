@@ -181,21 +181,22 @@ Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; ho
 **Can say**
 
 1. Vanilla TSR=0 vs APC/Optimizer ~0.78 → prefix caching yields large token savings on this workload.
-2. Optimizer rewrite-only ≈ APC on **aggregate** TSR; not a large aggregate win over stock APC here.
-3. On the designed win condition (semantic tier), Optimizer−APC is only **+0.014**; hypothesis weakly supported.
-4. APC’s semantic mean TSR ~0.46 is **bimodal** (median ~0.05): mostly crumbs on first-of-kind phrasing, near-full on **exact re-cycles** of mined strings — not proof that APC defeats paraphrase via mid-doc match.
-5. Hold raises TTFT; does not raise TSR.
-6. MiniLM adds large latency, negligible TSR.
+2. On the **main four-tier mix**, Optimizer rewrite-only ≈ APC on aggregate TSR; not a large aggregate win over stock APC there.
+3. On that mix’s semantic tier, Optimizer−APC is only **+0.014**; partly because semantic rows included exact re-cycles (§2.5).
+4. On an **adversarial semantic-only** probe (unique mined instructions, short shared doc, no repeats): APC TSR **0.108**, Optimizer **0.315** (**+0.207**) — Phase 4 hypothesis holds under that stress (§9).
+5. Hold raises TTFT; does not raise TSR on the main mix.
+6. MiniLM adds large latency, negligible TSR on the main mix.
 7. GPTCache is answer memoization — different mechanism.
-8. Strongest empirical contribution: **TSR vs TTFT decoupling** (vanilla vs APC/Optimizer).
+8. Strongest broad empirical contribution: **TSR vs TTFT decoupling** (vanilla vs APC/Optimizer). Plus: rewrite helps when paraphrases are truly unique and the shared suffix is the doc.
 
 **Cannot say**
 
-1. Optimizer Box beats APC (data do not support this as a headline).
-2. TTFT win for Optimizer vs APC.
+1. Optimizer massively beats APC on the **main four-tier burst** (there it ≈ APC).
+2. TTFT win for Optimizer vs APC (similar bands on both probes).
 3. APC `hit_rate=1.0` = 100% exact full-prompt hits.
 4. GPTCache is “better prefix caching.”
 5. Warm-KV TSR≈0.995 runs.
+6. That the adversarial probe replaces 6f — it **explains** when rewrite helps; main mix results still stand.
 
 ---
 
@@ -237,7 +238,8 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | Burst per-tier TSR | TODO |
 | max_batch disposition counts @ hold=50 | TODO |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
-| **Optional: adversarial semantic-only probe** | **Workload ready** — run on Aire (see §9) |
+| **Optional: adversarial semantic-only probe** | **Done (LMSYS)** — APC 0.108 vs Optimizer **0.315** (+0.207); see §9 |
+| **Multi-source uniqueness (ShareGPT+MOSS)** | **Pipeline ready** — fetch → mine → build → eval (§9b) |
 | 6h quality spot-check | Pending |
 | 6i six charts + captions | Pending |
 | 6j aggregate dissertation tables | Pending |
@@ -297,10 +299,66 @@ PYTHONPATH=. python -m src.eval.run --system optimizer \
 
 Prefer **c=1** so the first→later cache story is readable (no concurrent miss storm). Paste both summaries here.
 
-Quick local histogram after copy-back:
+### Results
+
+| System | n | TSR | mean TTFT ms | p50 lat ms | call1 | File | Cite? |
+|--------|---|-----|--------------|------------|-------|------|-------|
+| apc | 83/83 | **0.108** | 52 | 1422 | 16 | `adv_sem_apc.jsonl` | **OK** (soft crumb) |
+| optimizer hold-off embed-off | 83/83 | **0.315** | 54 | 1424 | **0** | `adv_sem_optimizer.jsonl` | **OK** (cold) |
+
+**Gap:** Optimizer − APC = **+0.207** (0.315 vs 0.108) — ~**3×** APC’s TSR on this probe.
+
+**APC reading:** TSR **0.108** vs ~0.46 mean on the old “semantic” tier — probe worked. Without exact re-cycles, APC mostly sees crumbs/shared-template tokens (~1.9k / 18k). Soft `call1=16`.
+
+**Optimizer reading:** TSR **0.315** with cold `call1=0`. Rewrite unifies mined paraphrases onto a canonical prefix over the **same short doc**, so APC behind the proxy can reuse that shared span after the first request. TTFT/p50 ≈ APC (no speed win; token-saving win). Higher `prompt_tokens` (21.5k vs 18.1k) is expected — rewritten prompts include the canonical system prefix.
+
+**Dissertation takeaway from this probe**
+
+| Setting | Optimizer − APC (semantic) |
+|---------|----------------------------|
+| Main mix (c=1 ablation, §2.4) | **+0.014** (weak / noise) |
+| Adversarial unique-instr + short shared doc (§9) | **+0.207** (clear) |
+
+So: Phase 4 hypothesis is **supported under adversarial stress**, but **not** on the original four-tier mix (where exact re-cycles inflated APC). Main-matrix “Optimizer ≈ APC” remains true for that workload; this probe explains *when* rewrite helps. Prefer reporting **both**, not replacing 6f with this alone.
+
+Quick histogram after copy-back:
 ```bash
 PYTHONPATH=. python -m src.eval.aggregate --jsonl \
   results/phase6/adv_sem_apc.jsonl \
   results/phase6/adv_sem_optimizer.jsonl
 ```
+
+### 9b. Multi-source uniqueness scale-up (ShareGPT + MOSS) — next
+
+**Motivation:** Main 2k mix was too similar (exact re-cycles). Real traffic is often more unique. Adding ShareGPT+MOSS mined phrasings grows the unique-instruction pool for a larger adversarial probe.
+
+**Pipeline on Aire** (after `git pull`):
+
+```bash
+pip install -q datasets   # if needed
+PYTHONPATH=. python -m src.eval.fetch_raw_datasets --source all --max-rows 20000
+PYTHONPATH=. python -m src.eval.mine_phrasings --write
+# check ShareGPT/MOSS columns > 0:
+cat workloads/phase6/phrasings_coverage.md
+
+PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 400 \
+  --probe-name adversarial_semantic_multi \
+  --out workloads/phase6/adversarial_semantic_multi.jsonl
+# inspect sources in *.meta.json
+```
+
+**Eval** (same design as §9; APC vs Optimizer only; cold between):
+
+```bash
+PYTHONPATH=. python -m src.eval.run --system apc \
+  --workload workloads/phase6/adversarial_semantic_multi.jsonl \
+  --concurrency 1 --out results/phase6/adv_sem_multi_apc.jsonl
+
+# restart vLLM cold + proxy hold-off embed-off
+PYTHONPATH=. python -m src.eval.run --system optimizer \
+  --workload workloads/phase6/adversarial_semantic_multi.jsonl \
+  --concurrency 1 --out results/phase6/adv_sem_multi_optimizer.jsonl
+```
+
+Still **mined only** — no invented paraphrases. Frame as sensitivity: “higher uniqueness mix,” not production Leeds logs.
 

@@ -6,7 +6,8 @@ Stresses the Phase 4 hypothesis: varied mined instructions + short shared doc,
 with **no exact prompt repeats** (unlike burst_full semantic cycling).
 
 Design:
-  - Unique LMSYS-mined instructions that rules-tag as summarize_3_bullets
+  - Unique mined instructions (LMSYS / ShareGPT / MOSS) that rules-tag as
+    summarize_3_bullets
   - One short shared university-style doc (instruction mass matters vs doc mass)
   - Deduped full prompts — first occurrence only
 
@@ -15,7 +16,8 @@ Expected signal:
   - Optimizer rewrite: after first hit, canonical instruction + same doc shares prefix
 
   PYTHONPATH=. python -m src.eval.build_adversarial_semantic
-  PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 80
+  PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 400 \\
+      --out workloads/phase6/adversarial_semantic_multi.jsonl
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections import Counter
 from pathlib import Path
 
 from src.proxy.rewrite.schema import Task, tag_user_text
@@ -61,7 +64,10 @@ _BLOCKLIST = re.compile(
 )
 
 
-def _load_unique_instructions() -> list[dict]:
+def _load_unique_instructions(
+    *,
+    sources: set[str] | None = None,
+) -> list[dict]:
     rows = [
         json.loads(line)
         for line in PHRASE_PATH.read_text(encoding="utf-8").splitlines()
@@ -70,6 +76,9 @@ def _load_unique_instructions() -> list[dict]:
     seen: set[str] = set()
     out: list[dict] = []
     for row in rows:
+        src = (row.get("source") or "unknown").strip().lower()
+        if sources is not None and src not in sources:
+            continue
         instr = (row.get("instruction") or "").strip()
         if not instr or instr in seen:
             continue
@@ -86,7 +95,7 @@ def _load_unique_instructions() -> list[dict]:
         out.append(
             {
                 "instruction": instr,
-                "source": row.get("source"),
+                "source": src,
                 "mine_id": row.get("mine_id"),
                 "tag_confidence": tags.confidence,
             }
@@ -94,11 +103,29 @@ def _load_unique_instructions() -> list[dict]:
     return out
 
 
-def build(*, limit: int | None) -> tuple[list[dict], dict]:
+def build(
+    *,
+    limit: int | None,
+    sources: set[str] | None = None,
+    probe_name: str = "adversarial_semantic",
+) -> tuple[list[dict], dict]:
     DOC_PATH.parent.mkdir(parents=True, exist_ok=True)
     DOC_PATH.write_text(SHORT_DOC + "\n", encoding="utf-8")
 
-    candidates = _load_unique_instructions()
+    candidates = _load_unique_instructions(sources=sources)
+    # Prefer diversity: round-robin by source when multi-source
+    if sources is None or len(sources) > 1:
+        by_src: dict[str, list[dict]] = {}
+        for row in candidates:
+            by_src.setdefault(row["source"], []).append(row)
+        if len(by_src) > 1:
+            ordered: list[dict] = []
+            while any(by_src.values()):
+                for s in sorted(by_src.keys()):
+                    if by_src[s]:
+                        ordered.append(by_src[s].pop(0))
+            candidates = ordered
+
     if limit is not None:
         candidates = candidates[: max(1, limit)]
 
@@ -119,10 +146,11 @@ def build(*, limit: int | None) -> tuple[list[dict], dict]:
                 "phrasing_source": row.get("source"),
                 "mine_id": row.get("mine_id"),
                 "tag_confidence": row.get("tag_confidence"),
-                "probe": "adversarial_semantic",
+                "probe": probe_name,
             }
         )
 
+    src_counts = Counter(it.get("phrasing_source") for it in items)
     meta = {
         "n": len(items),
         "n_candidates_rules_matched": len(candidates),
@@ -130,9 +158,11 @@ def build(*, limit: int | None) -> tuple[list[dict], dict]:
         "doc_chars": len(SHORT_DOC),
         "unique_prompts": len(prompts_seen),
         "exact_prompt_duplicates_dropped": 0,
+        "sources": dict(src_counts),
         "design": (
             "unique mined summarize instructions + one short shared doc; "
-            "no exact prompt repeats; rules-matched only (embed off)"
+            "no exact prompt repeats; rules-matched only (embed off); "
+            f"sources={sorted(sources) if sources else 'all'}"
         ),
     }
     return items, meta
@@ -144,15 +174,32 @@ def main() -> None:
         "--limit",
         type=int,
         default=100,
-        help="Max unique instructions (default 100)",
+        help="Max unique instructions (default 100; use 300–400 after multi-source mine)",
+    )
+    ap.add_argument(
+        "--sources",
+        default="all",
+        help="Comma list: lmsys,sharegpt,moss or 'all' (default)",
     )
     ap.add_argument(
         "--out",
         default=str(OUT_DIR / "adversarial_semantic.jsonl"),
     )
+    ap.add_argument(
+        "--probe-name",
+        default="adversarial_semantic",
+        help="Label stored on each row (e.g. adversarial_semantic_multi)",
+    )
     args = ap.parse_args()
 
-    items, meta = build(limit=args.limit)
+    if args.sources.strip().lower() == "all":
+        sources = None
+    else:
+        sources = {s.strip().lower() for s in args.sources.split(",") if s.strip()}
+
+    items, meta = build(
+        limit=args.limit, sources=sources, probe_name=args.probe_name
+    )
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", encoding="utf-8") as f:
@@ -163,8 +210,8 @@ def main() -> None:
     print(json.dumps({"out": str(out), "meta": meta}, indent=2))
     if len(items) < 30:
         print(
-            "WARNING: fewer than 30 items — mine more summarize phrasings "
-            "or lower the confidence filter."
+            "WARNING: fewer than 30 items — fetch ShareGPT/MOSS, remine, "
+            "or lower --limit / confidence filter."
         )
 
 
