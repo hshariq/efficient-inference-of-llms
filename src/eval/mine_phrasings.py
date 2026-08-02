@@ -104,8 +104,13 @@ def _extract_human(obj: object) -> str | None:
         v = obj.get(key)
         if isinstance(v, str) and v.strip():
             return v.strip()[:500]
-    # ShareGPT / MOSS conversations
+    # ShareGPT / MOSS conversations (possibly JSON-string nested)
     conv = obj.get("conversations") or obj.get("conversation") or obj.get("chat")
+    if isinstance(conv, str) and conv.strip().startswith(("[", "{")):
+        try:
+            conv = json.loads(conv)
+        except json.JSONDecodeError:
+            conv = None
     if isinstance(conv, list):
         for turn in conv:
             if isinstance(turn, str) and turn.strip():
@@ -117,7 +122,7 @@ def _extract_human(obj: object) -> str | None:
                 return turn["human"].strip()[:500]
             role = (turn.get("from") or turn.get("role") or "").lower()
             if role in {"human", "user"}:
-                v = turn.get("value") or turn.get("content")
+                v = turn.get("value") or turn.get("content") or turn.get("text")
                 if isinstance(v, str) and v.strip():
                     return v.strip()[:500]
             for k in ("value", "content", "text", "human", "user", "query"):
