@@ -88,7 +88,32 @@
 | optimizer | 0.976 | **0.475** | 0.963 | ~0.35 | 0.700 |
 | gptcache | 0.975 | 0.759 | 1.000 | 0.000 | 0.857 |
 
-**Optimizer − APC on semantic only: +0.014.** No buried headline win in the aggregate gap. Burst per-tier still TODO (`aggregate --jsonl` on `burst_*.jsonl`).
+**Optimizer − APC on semantic only: +0.014.** No buried headline win in the aggregate gap. Same story at burst scale — see §2.6 (**+0.011**).
+
+### 2.6 Per-tier TSR @ burst 2k c=8 — done
+
+Same four-tier mix as §2.1, broken out (from `aggregate --jsonl` on `burst_*.jsonl`):
+
+| System | exact | **semantic** | best_of_n | lone_wolf | aggregate |
+|--------|------:|-------------:|----------:|----------:|----------:|
+| vanilla | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 |
+| apc | 0.997 | **0.592** | 0.993 | 0.417 | 0.775 |
+| optimizer (hold off/on embed-off) | 0.997 | **0.602** | 0.992 | 0.419 | 0.780 |
+| gptcache c=8 | 0.980 | 0.767 | 1.000 | 0.007 | 0.862 |
+
+**Optimizer − APC on semantic: +0.011** (0.602 − 0.592). Matches the c=1 story (+0.014): no large buried win on the main mix. Hold-on and hold-off Optimizer rows are **identical** per tier (hold does not change TSR). Exact / best_of_n already saturated (~0.99) for APC and Optimizer; lone_wolf ~0.42 for both (little shared prefix). GPTCache semantic high / lone_wolf ~0 = answer memoization, not KV prefix reuse.
+
+### 2.7 TTL dispositions @ hold=50 (burst Optimizer hold-on)
+
+From `burst_optimizer_holdon_embedoff.jsonl` (`ttl` header field):
+
+| Disposition | Count | Share | Meaning |
+|-------------|------:|------:|---------|
+| `hold_window` | 1477 | 73.9% | Waited the hold window, then admitted |
+| `skip` | 515 | 25.8% | Hold skipped (no coalescing opportunity) |
+| `max_batch` | 8 | 0.4% | Flushed early because peer batch hit max |
+
+**Takeaway:** Hold is active on most requests; `max_batch` is rare at this mix/concurrency. Cite as Phase 5 behaviour evidence, not a TSR lever (TSR unchanged vs hold-off).
 
 ### 2.5 Why APC already has TSR 0.461 on “semantic” (important for write-up)
 
@@ -237,14 +262,14 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | **6f burst + hold=50** | **Done** |
 | Explain semantic APC 0.461 | **Done** (§2.5 — bimodal / exact re-cycles) |
 | **Uniqueness probes §9–9c** | **Done** — mined only; n=83/224/556; Δ +0.21/+0.20/+0.18; CIs non-overlapping; no hand-authored padding |
-| Burst per-tier TSR | **Next** (aggregate `--jsonl` on burst_* files) |
-| max_batch disposition counts @ hold=50 | TODO |
+| Burst per-tier TSR | **Done** (§2.6) — semantic Opt−APC **+0.011** |
+| max_batch disposition counts @ hold=50 | **Done** (§2.7) — hold_window 1477 / skip 515 / max_batch 8 |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
-| 6h quality spot-check | Pending |
+| 6h quality spot-check | **Next** |
 | 6i six charts + captions | Pending |
 | 6j aggregate dissertation tables | Pending |
 
-**Uniqueness family closed.** Do not hand-author paraphrases into §9 numbers. Optional later: separate labeled diagnostic only. When back: start with **burst per-tier TSR**, then max_batch counts → 6h → 6i → 6j.
+**Next:** 6h quality spot-check → 6i charts → 6j tables.
 
 ---
 
