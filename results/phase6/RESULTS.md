@@ -281,10 +281,102 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | max_batch disposition counts @ hold=50 | **Done** (§2.7) — hold_window 1477 / skip 515 / max_batch 8 |
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
 | 6h quality spot-check | **Done** (§2.8) — stratified 12; rewrite OK / lone_wolf bypass OK |
-| 6i charts + captions | **Done** — six figures: 01–04, **05 uniqueness**, 06 scatter (stacked 05 dropped) |
+| 6i charts + captions | **Done** — six figures 01–06 (`05` uniqueness, `06` TSR histograms; stacked/scatter/07 gone) |
 | 6j aggregate dissertation tables | **Next** |
 
-**6i locked:** methods say **six** charts; artefacts match (`05_uniqueness_tsr_by_n.png`; no stacked/07). **Re-fix chart 03** before citing: old version defaulted missing c=1/burst endpoints to 0 ms (fake cliffs). Script now requires both endpoints; regenerate with matched pairs (include hold-on in `--ttft-burst`).
+**6i locked:** captions match artefacts. Chart 03 only plots systems with both c=1 and burst TTFT (no phantom 0s). Chart 06 = per-request TSR histograms (bimodality). Full figure-by-figure analysis → **§10**. **Next:** 6j.
+
+---
+
+## 10. Chart analysis (6i figures)
+
+Artefacts: `results/phase6/charts/01–06_*.png` + `captions.txt`.  
+Use these as the dissertation figure set (six figures). Cross-check numbers against §2.1–2.8 and §9–9c.
+
+### Figure 01 — TSR by system (`01_tsr_by_system.png`)
+
+**What it shows:** Aggregate Token Saving Ratio on the main **2k burst** mix.
+
+| System | Approx. TSR | Reading |
+|--------|------------:|---------|
+| vanilla | **0.00** | Measured baseline (APC off) — not a missing bar |
+| apc | **~0.78** | Prefix caching carries almost all savings |
+| optimizer / optimizer_hold | **~0.78** | Rewrite ± hold ≈ APC on this mix |
+| gptcache | **~0.86** | Highest TSR, but **answer memoization**, not KV prefix reuse |
+
+**Dissertation point:** On the controlled four-tier mix, Optimizer is **not** a large aggregate win over stock APC. Lead claim is “prefix caching matters (vanilla→APC)”; rewrite is a conditional add-on (see Fig 05).
+
+### Figure 02 — Hit rate vs TSR (`02_hitrate_vs_tsr.png`)
+
+**What it shows:** Side-by-side **hit_rate** and **TSR** for the same burst summaries.
+
+- APC / Optimizer / hold: hit_rate **1.0** but TSR only **~0.78** → hit_rate is a weak “any cached_tokens > 0” signal, not “full prompt reused.”
+- GPTCache: hit_rate **~0.65** with TSR **~0.86** → fewer but **full answer** hits; metric means something different.
+- Vanilla: both **0**.
+
+**Dissertation point:** Do not treat hit_rate as the primary success metric (SCALM-style vanity argument). Prefer TSR (+ per-request distributions in Fig 06).
+
+### Figure 03 — TTFT across load (`03_ttft_across_scenarios.png`)
+
+**What it shows:** Mean client-side TTFT from **c=1 → burst**, only for systems with **both** endpoints (no phantom zeros).
+
+| System | c=1 | burst | Reading |
+|--------|----:|------:|---------|
+| gptcache | ~25 ms | ~110 ms | Fast on hits; rises under load |
+| apc | ~95–100 ms | ~120 ms | Stable |
+| vanilla | ~100 ms | **~305 ms** | Worst scaling under burst |
+| optimizer_hold | ~145 ms | **~200 ms** | Hold tax visible at both loads |
+
+**Why main-row `optimizer` (hold-off) is absent:** no cold c=1 hold-off run (§4). Chart job = **load scaling** for paired endpoints, not the hold ablation. Burst hold-off TTFT≈APC (**126 vs 122 ms**) and hold tax vs hold-off (**200 vs 126 ms**, TSR unchanged) belong in **§2.1 / §2.2 tables**, not this figure.
+
+**Dissertation point:** Frame as **cost / scaling**, not speed win. Vanilla degrades most under burst; APC stays flat-ish; hold raises TTFT when plotted.
+
+### Figure 04 — Latency box plot (`04_latency_boxplot.png`)
+
+**What it shows:** Full per-request latency distribution on burst (not just means).
+
+- **apc:** tightest box (~1.2–2.0 s) — predictable.
+- **optimizer / hold:** similar medians (~1.65–1.70 s), slightly wider than APC; hold a bit higher.
+- **gptcache:** median ~**100 ms** but long upper whisker (~3.5 s) — hit/miss bimodality in latency.
+- **vanilla:** highest median (~2.4 s) and worst tails (~4 s).
+
+**Dissertation point:** Means hide tails. GPTCache’s median win is real for hits but not “uniformly faster.” Hold is a small latency shift, not a TSR shift (Fig 01).
+
+### Figure 05 — Uniqueness probes (`05_uniqueness_tsr_by_n.png`)
+
+**What it shows:** APC vs Optimizer TSR on **no-exact-repeat** summarize probes at n=83 / 224 / 556 (same short shared doc).
+
+| n | APC | Optimizer | Δ |
+|--:|----:|----------:|--:|
+| 83 | ~0.11 | ~0.32 | ~+0.21 |
+| 224 | ~0.11 | ~0.31 | ~+0.20 |
+| 556 | ~0.13 | ~0.30 | ~+0.18 |
+
+**Dissertation point:** This is the Phase 4 win condition under uniqueness stress. Gap is stable as n grows; **not** the main four-tier mix (Fig 01). Cite with bootstrap CIs in §9–9c. Single short doc = favorable / sensitivity setup.
+
+### Figure 06 — Per-request TSR histograms (`06_tsr_distribution.png`)
+
+**What it shows:** Per-request TSR on the **full four-tier burst mix** (tiers pooled), one panel per system. Dashed = median.
+
+- **vanilla:** all mass at 0; median 0.
+- **gptcache:** almost pure **0 vs 1** (answer hit or miss); little partial reuse.
+- **apc / optimizer / hold:** mass near 0 and near 1.0, plus a **minority partial band ~0.2–0.6**; median **1.0** because >half the burst requests are near-full hits on this mix.
+- Hold panel ≈ optimizer panel → hold does not change the TSR shape.
+
+**Caption precision:** This bimodality is **mostly tier composition** (exact/BoN saturate; semantic/lone_wolf sit lower — §2.6), **not** a direct plot of the §2.5 semantic-only exact-recycle audit. It is **consistent with** §2.5 but coarser; §2.6 is the explanatory breakdown. Do not claim this figure “proves” the recycle mechanism by itself.
+
+**Dissertation point:** Aggregate TSR ~0.78 averages a mixture. Complements §2.6; uniqueness probes (Fig 05) show what happens when exact re-cycles are removed.
+
+### How to use the six figures together
+
+| Narrative beat | Figures |
+|----------------|---------|
+| Prefix caching is the big lever on the main mix | 01, 03, 04, 06 |
+| Hit rate is a bad primary metric | 02 |
+| Rewrite ≈ APC on main mix; helps under unique paraphrases | 01 vs **05** |
+| Hold costs latency, not tokens | 01, 03, 04, 06 |
+
+**Do not claim from these charts alone:** Optimizer is always better than APC; GPTCache is “better APC”; hold improves TSR; TTFT win for rewrite.
 
 ---
 

@@ -2,10 +2,10 @@
 
 02_hitrate_vs_tsr.png: Grouped bars contrasting hit rate with TSR. APC/Optimizer hit_rate≈1.0 is a weak ‘any cache’ signal; GPTCache hit_rate is real answer-cache hits (SCALM vanity-metric argument).
 
-03_ttft_across_scenarios.png: Line chart of mean client-side TTFT from concurrency=1 to burst (systems with both endpoints only). Cost framing under load — not a speed win. Hold cost: compare optimizer vs optimizer_hold when both pairs are supplied.
+03_ttft_across_scenarios.png: Line chart of mean client-side TTFT from concurrency=1 to burst (only systems with both endpoints). Shows load scaling / cost framing — not a speed win. Main-row optimizer (hold-off) is omitted here because there is no cold c=1 run for that config (§4); its burst TTFT≈APC comparison lives in §2.1. Hold latency tax (c=1 and burst) is the optimizer_hold line; hold vs hold-off TSR/TTFT table is §2.2.
 
 04_latency_boxplot.png: Box plot of per-request latency (burst JSONL). Supports TTL/starvation tail-latency discussion better than three adjacent bars.
 
 05_uniqueness_tsr_by_n.png: Grouped bars of APC vs Optimizer TSR on uniqueness probes (n=83, 224, 556). Rewrite gap holds as unique mined instructions scale; not the main four-tier mix. Replaces the old stacked ‘semantic+TTL’ chart (hold does not raise TSR).
 
-06_tsr_distribution.png: Faceted histograms of per-request TSR (cached/prompt) by system. Shows the real shape of savings — often bimodal (near-miss crumbs vs near-full exact re-use) — clearer than a multi-system size scatter. Dashed = median.
+06_tsr_distribution.png: Faceted histograms of per-request TSR (cached/prompt) by system (burst, all tiers pooled). Bimodal shape is largely tier composition (exact/BoN near-saturated vs semantic/lone_wolf near-crumb); see §2.6 for the per-tier decomposition. Consistent with, but not isolating, the semantic-tier exact-recycle effect in §2.5. A minority partial band (~0.2–0.6) sits between the spikes. Dashed = median.

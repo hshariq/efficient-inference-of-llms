@@ -203,8 +203,11 @@ def generate(
     plt.close(fig)
     captions.append(
         f"{p.name}: Line chart of mean client-side TTFT from concurrency=1 to burst "
-        "(systems with both endpoints only). Cost framing under load — not a speed win. "
-        "Hold cost: compare optimizer vs optimizer_hold when both pairs are supplied."
+        "(only systems with both endpoints). Shows load scaling / cost framing — "
+        "not a speed win. Main-row optimizer (hold-off) is omitted here because there "
+        "is no cold c=1 run for that config (§4); its burst TTFT≈APC comparison lives "
+        "in §2.1. Hold latency tax (c=1 and burst) is the optimizer_hold line; "
+        "hold vs hold-off TSR/TTFT table is §2.2."
     )
 
     # --- 4 box plot latency ---
@@ -293,9 +296,12 @@ def generate(
         stale_scatter.unlink()
 
     captions.append(
-        f"{p.name}: Faceted histograms of per-request TSR (cached/prompt) by system. "
-        "Shows the real shape of savings — often bimodal (near-miss crumbs vs near-full "
-        "exact re-use) — clearer than a multi-system size scatter. Dashed = median."
+        f"{p.name}: Faceted histograms of per-request TSR (cached/prompt) by system "
+        "(burst, all tiers pooled). Bimodal shape is largely tier composition "
+        "(exact/BoN near-saturated vs semantic/lone_wolf near-crumb); see §2.6 for "
+        "the per-tier decomposition. Consistent with, but not isolating, the "
+        "semantic-tier exact-recycle effect in §2.5. A minority partial band "
+        "(~0.2–0.6) sits between the spikes. Dashed = median."
     )
 
     cap_path = out_dir / "captions.txt"
