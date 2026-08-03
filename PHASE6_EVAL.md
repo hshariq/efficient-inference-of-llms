@@ -127,7 +127,7 @@ matplotlib; one image + 1–2 sentence caption each (`captions.txt`).
 - [ ] 6f burst run (2,000 req, four-tier), all systems; max_batch under real burst
 - [ ] 6g ablation runs (four-tier, reduced scale)
 - [ ] 6h quality spot-check
-- [ ] 6i six required charts + captions (bar / grouped / line / box / stacked / scatter)
+- [x] 6i six required charts + captions (bar / grouped / line / box / uniqueness / TSR hist)
 - [ ] 6j aggregate tables ready for dissertation
 
 Scripts for 6h–6j exist (`quality_spotcheck`, `charts`, `aggregate`); they need run artefacts from 6e–6g.

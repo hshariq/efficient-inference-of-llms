@@ -4,7 +4,7 @@
 > Decisions / narrative: `docs/PHASE6_DECISIONS_LOG.md`.  
 > Short ablation pointer: `ABLATION_C1_2026-07-26.md` (tables live **here only**).
 
-**Status (2026-07-30):** **6f burst matrix complete.** Per-tier on burst JSONLs, quality (6h), charts (6i), aggregate tables (6j) still pending.
+**Status (2026-08-03):** **6a–6i done** (burst matrix, per-tier, uniqueness probes §9–9c, quality, six charts + §10 analysis). **Remaining: 6j** aggregate dissertation tables.
 
 ---
 
