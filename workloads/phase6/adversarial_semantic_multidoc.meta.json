@@ -1,0 +1,41 @@
+{
+  "n": 83,
+  "n_candidates_rules_matched": 83,
+  "doc_mode": "corpus",
+  "doc_ids": [
+    "doc_assess_regs",
+    "doc_lib_services",
+    "doc_mod_comp101",
+    "doc_mod_math105",
+    "doc_policy_attendance",
+    "doc_policy_extensions",
+    "doc_prog_bsc_cs",
+    "doc_wellbeing"
+  ],
+  "doc_counts": {
+    "doc_assess_regs": 11,
+    "doc_lib_services": 11,
+    "doc_mod_comp101": 11,
+    "doc_mod_math105": 10,
+    "doc_policy_attendance": 10,
+    "doc_policy_extensions": 10,
+    "doc_prog_bsc_cs": 10,
+    "doc_wellbeing": 10
+  },
+  "doc_chars": {
+    "doc_assess_regs": 11863,
+    "doc_lib_services": 12138,
+    "doc_mod_comp101": 11921,
+    "doc_mod_math105": 12073,
+    "doc_policy_attendance": 12098,
+    "doc_policy_extensions": 12063,
+    "doc_prog_bsc_cs": 12201,
+    "doc_wellbeing": 12046
+  },
+  "unique_prompts": 83,
+  "exact_prompt_duplicates_dropped": 0,
+  "sources": {
+    "lmsys": 83
+  },
+  "design": "unique mined summarize instructions + round-robin across 8 Leeds-style corpus docs; no exact prompt repeats; rules-matched only (embed off); sources=all"
+}

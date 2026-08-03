@@ -2,22 +2,29 @@
 """
 Build an adversarial semantic-only probe for Phase 6.
 
-Stresses the Phase 4 hypothesis: varied mined instructions + short shared doc,
+Stresses the Phase 4 hypothesis: varied mined instructions + shared doc(s),
 with **no exact prompt repeats** (unlike burst_full semantic cycling).
 
 Design:
   - Unique mined instructions (LMSYS / ShareGPT / MOSS) that rules-tag as
     summarize_3_bullets
-  - One short shared university-style doc (instruction mass matters vs doc mass)
+  - Doc mode:
+      * single — one short shared doc (original §9 probe)
+      * corpus — round-robin across the 8 Leeds-style docs (multi-doc sensitivity)
   - Deduped full prompts — first occurrence only
 
-Expected signal:
-  - APC: median cached/prompt near crumbs (instruction differs every time)
-  - Optimizer rewrite: after first hit, canonical instruction + same doc shares prefix
+Expected signal (single short doc):
+  - APC: median cached/prompt near crumbs
+  - Optimizer: canonical prefix + same doc → higher TSR
+
+Multi-doc sensitivity:
+  - Shared *instruction* template still unifies under rewrite; docs differ
+  - Tests whether §9 win survives longer / varied suffixes (not more n on one doc)
 
   PYTHONPATH=. python -m src.eval.build_adversarial_semantic
-  PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 400 \\
-      --out workloads/phase6/adversarial_semantic_multi.jsonl
+  PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 200 \\
+      --doc-mode corpus --probe-name adversarial_semantic_multidoc \\
+      --out workloads/phase6/adversarial_semantic_multidoc.jsonl
 """
 
 from __future__ import annotations
@@ -34,8 +41,9 @@ from src.proxy.rewrite.tagging import DEFAULT_CONFIDENCE_THRESHOLD
 ROOT = Path(__file__).resolve().parents[2]
 PHRASE_PATH = ROOT / "workloads" / "phase6" / "phrasings" / "summarize_3_bullets.jsonl"
 OUT_DIR = ROOT / "workloads" / "phase6"
+DOCS_DIR = OUT_DIR / "docs"
 DOC_ID = "doc_adversarial_short"
-DOC_PATH = OUT_DIR / "docs" / f"{DOC_ID}.txt"
+DOC_PATH = DOCS_DIR / f"{DOC_ID}.txt"
 
 # Short on purpose: leave headroom for instruction unification to matter.
 SHORT_DOC = """\
@@ -62,6 +70,31 @@ _BLOCKLIST = re.compile(
     r"\bNSFW\b|tampon|cum\b|BDSM|hacked)",
     re.I,
 )
+
+# Full Leeds-style corpus (exclude the short adversarial-only stub).
+_CORPUS_DOC_IDS = (
+    "doc_assess_regs",
+    "doc_lib_services",
+    "doc_mod_comp101",
+    "doc_mod_math105",
+    "doc_policy_attendance",
+    "doc_policy_extensions",
+    "doc_prog_bsc_cs",
+    "doc_wellbeing",
+)
+
+
+def _load_corpus_docs() -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for doc_id in _CORPUS_DOC_IDS:
+        path = DOCS_DIR / f"{doc_id}.txt"
+        if not path.exists():
+            raise FileNotFoundError(f"missing corpus doc: {path}")
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            raise ValueError(f"empty corpus doc: {path}")
+        out.append((doc_id, text))
+    return out
 
 
 def _load_unique_instructions(
@@ -108,9 +141,17 @@ def build(
     limit: int | None,
     sources: set[str] | None = None,
     probe_name: str = "adversarial_semantic",
+    doc_mode: str = "single",
 ) -> tuple[list[dict], dict]:
-    DOC_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
     DOC_PATH.write_text(SHORT_DOC + "\n", encoding="utf-8")
+
+    if doc_mode == "corpus":
+        docs = _load_corpus_docs()
+    elif doc_mode == "single":
+        docs = [(DOC_ID, SHORT_DOC)]
+    else:
+        raise ValueError(f"unknown doc_mode {doc_mode!r}; use single|corpus")
 
     candidates = _load_unique_instructions(sources=sources)
     # Prefer diversity: round-robin by source when multi-source
@@ -131,17 +172,20 @@ def build(
 
     items: list[dict] = []
     prompts_seen: set[str] = set()
-    for i, row in enumerate(candidates, start=1):
-        prompt = f"{row['instruction']}\n\n{SHORT_DOC}"
+    doc_counts: Counter[str] = Counter()
+    for i, row in enumerate(candidates):
+        doc_id, doc_text = docs[i % len(docs)]
+        prompt = f"{row['instruction']}\n\n{doc_text}"
         if prompt in prompts_seen:
             continue
         prompts_seen.add(prompt)
+        doc_counts[doc_id] += 1
         items.append(
             {
-                "req_id": f"adv-sem-{i}",
+                "req_id": f"adv-sem-{len(items) + 1}",
                 "tier": "semantic",
                 "task": "summarize_3_bullets",
-                "doc_id": DOC_ID,
+                "doc_id": doc_id,
                 "prompt": prompt,
                 "phrasing_source": row.get("source"),
                 "mine_id": row.get("mine_id"),
@@ -154,14 +198,21 @@ def build(
     meta = {
         "n": len(items),
         "n_candidates_rules_matched": len(candidates),
-        "doc_id": DOC_ID,
-        "doc_chars": len(SHORT_DOC),
+        "doc_mode": doc_mode,
+        "doc_ids": list(doc_counts.keys()),
+        "doc_counts": dict(doc_counts),
+        "doc_chars": {d: len(t) for d, t in docs},
         "unique_prompts": len(prompts_seen),
         "exact_prompt_duplicates_dropped": 0,
         "sources": dict(src_counts),
         "design": (
-            "unique mined summarize instructions + one short shared doc; "
-            "no exact prompt repeats; rules-matched only (embed off); "
+            "unique mined summarize instructions + "
+            + (
+                "one short shared doc"
+                if doc_mode == "single"
+                else f"round-robin across {len(docs)} Leeds-style corpus docs"
+            )
+            + "; no exact prompt repeats; rules-matched only (embed off); "
             f"sources={sorted(sources) if sources else 'all'}"
         ),
     }
@@ -174,12 +225,18 @@ def main() -> None:
         "--limit",
         type=int,
         default=100,
-        help="Max unique instructions (default 100; use 300–400 after multi-source mine)",
+        help="Max unique instructions (default 100; use 200 for multi-doc quick probe)",
     )
     ap.add_argument(
         "--sources",
         default="all",
         help="Comma list: lmsys,sharegpt,moss or 'all' (default)",
+    )
+    ap.add_argument(
+        "--doc-mode",
+        choices=("single", "corpus"),
+        default="single",
+        help="single=short shared doc (§9); corpus=8 Leeds-style docs (sensitivity)",
     )
     ap.add_argument(
         "--out",
@@ -188,7 +245,7 @@ def main() -> None:
     ap.add_argument(
         "--probe-name",
         default="adversarial_semantic",
-        help="Label stored on each row (e.g. adversarial_semantic_multi)",
+        help="Label stored on each row (e.g. adversarial_semantic_multidoc)",
     )
     args = ap.parse_args()
 
@@ -198,7 +255,10 @@ def main() -> None:
         sources = {s.strip().lower() for s in args.sources.split(",") if s.strip()}
 
     items, meta = build(
-        limit=args.limit, sources=sources, probe_name=args.probe_name
+        limit=args.limit,
+        sources=sources,
+        probe_name=args.probe_name,
+        doc_mode=args.doc_mode,
     )
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

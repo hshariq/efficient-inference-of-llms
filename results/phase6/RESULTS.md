@@ -555,3 +555,39 @@ CIs non-overlapping and **tighter** than §9 (larger n). Safe to cite with main 
 
 **Do not fetch more dumps** for this probe family unless a new English summarize source appears; n=556 is the yield story, not a failed 2k target.
 
+### 9d. Multi-doc uniqueness sensitivity — ready to run
+
+**Motivation:** §9–9c use one short shared doc (~795 chars). Does the rewrite gap survive when unique instructions are paired with the **8 Leeds-style corpus docs** (~12k chars each), round-robin?
+
+| Design | Value |
+|--------|--------|
+| Workload | `adversarial_semantic_multidoc.jsonl` |
+| Builder | `--doc-mode corpus --limit 200` |
+| Docs | 8 corpus files (not `doc_adversarial_short`) |
+| Systems | APC vs Optimizer hold-off embed-off; cold between; **c=1** |
+| Outs | **distinct** paths: `adv_sem_multidoc_apc.jsonl` / `adv_sem_multidoc_optimizer.jsonl` |
+
+```bash
+git pull
+PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 200 \
+  --doc-mode corpus \
+  --probe-name adversarial_semantic_multidoc \
+  --out workloads/phase6/adversarial_semantic_multidoc.jsonl
+
+# cold APC
+PYTHONPATH=. python -m src.eval.run --system apc \
+  --workload workloads/phase6/adversarial_semantic_multidoc.jsonl \
+  --concurrency 1 --out results/phase6/adv_sem_multidoc_apc.jsonl
+
+# cold restart + proxy hold-off embed-off
+PYTHONPATH=. python -m src.eval.run --system optimizer \
+  --workload workloads/phase6/adversarial_semantic_multidoc.jsonl \
+  --concurrency 1 --out results/phase6/adv_sem_multidoc_optimizer.jsonl
+
+PYTHONPATH=. python -m src.eval.aggregate --probe-stats \
+  results/phase6/adv_sem_multidoc_apc.jsonl \
+  results/phase6/adv_sem_multidoc_optimizer.jsonl
+```
+
+**How to read:** Optimizer − APC still clearly positive → §9 effect not only a short-doc artefact. Gap shrinks a lot → longer/varied suffixes dilute shared-prefix savings; report honestly as sensitivity. Frame as optional follow-up, not a replacement for §9–9c.
+
