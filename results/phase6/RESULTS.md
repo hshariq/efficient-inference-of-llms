@@ -4,7 +4,7 @@
 > Decisions / narrative: `docs/PHASE6_DECISIONS_LOG.md`.  
 > Short ablation pointer: `ABLATION_C1_2026-07-26.md` (tables live **here only**).
 
-**Status (2026-08-03):** **6a–6i done** (burst matrix, per-tier, uniqueness probes §9–9c, quality, six charts + §10 analysis). **Remaining: 6j** aggregate dissertation tables.
+**Status (2026-08-03):** **Phase 6 eval pipeline complete (6a–6j).** Canonical numbers: this file. Paste-ready tables: `dissertation_tables.md`. Figures: `charts/` + §10.
 
 ---
 
@@ -18,7 +18,7 @@
 | Secondary | mean TTFT (client-side, includes hold), p50/p90/p99 latency, hit rate, throughput |
 | Corpus | Simulated **University of Leeds Student Assistant** — **not** real student data |
 | Docs | 8 synthetic university-style RAG docs |
-| Phrasing | LMSYS-mined (ShareGPT/MOSS deferred) — no hand-authored paraphrases |
+| Phrasing | LMSYS + ShareGPT mined (MOSS scanned; no English summarize yield for uniqueness probe) — no hand-authored paraphrases |
 | Tasks | Catalogue: mainly `summarize_3_bullets` (+ `extract_entities` where matched) |
 | Workloads | `burst_ablation.jsonl` (200) · `burst_full.jsonl` (2000 = 400 exact / 800 semantic / 300 BoN / 500 lone_wolf) |
 | Concurrency | Ablation c=1 · Burst **c=8** (BoN groups always co-dispatched) |
@@ -193,13 +193,11 @@ Workload: `burst_ablation.jsonl` (200 = 40/80/30/50).
 
 Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; hold only moves TTFT.
 
-### Do not cite
+### Do not cite — provenance
 
-- Warm KV runs with **TSR ≈ 0.995** and `cached_tokens_call1: 96` (e.g. early `c1_optimizer.summary.json`).
-
-### Still missing (c=1 only)
-
-- Cold hold-off + embed-off at c=1 (covered at burst scale as main Optimizer row).
+- **`c1_optimizer.jsonl` / `.summary.json` (hold-off, embed-off @ c=1):** run was **attempted**, but the surviving artefact is **warm-KV contaminated** — TSR **0.995**, `cached_tokens_call1: 96`. Do **not** cite. Honesty rule: reject call1≈96 / TSR≈0.995.
+- This is **not** “never run.” It is **not retained as a cold OK cell**. A session-log TSR≈0.70 for the same path (if any) was superseded on disk by the warm overwrite; we do not reconstruct that printout into tables.
+- **Cold hold-off + embed-off** is covered at **burst** scale as the main Optimizer row (`burst_optimizer_holdoff_embedoff.jsonl`, TSR 0.780, call1 soft crumb). No need to re-run c=1 for headline claims.
 
 ---
 
@@ -253,7 +251,10 @@ Semantic: 80/80 rewrite by **rules alone**. Identical aggregate TSR expected; ho
 | `burst_optimizer_holdoff_minilm.jsonl` | MiniLM ablation (1 fail) |
 | `burst_optimizer_holdon_minilm.jsonl` | Hold+MiniLM |
 | `c1_*.jsonl` | Ablation @ c=1 |
-| `aggregate_per_tier.{md,csv}` | c=1 per-tier export |
+| `dissertation_tables.md` | **6j** paste-ready T1–T8 + figure↔table crosswalk |
+| `charts/01–06_*.png` + `captions.txt` | **6i** dissertation figures |
+| `quality_spotcheck.md` | **6h** stratified previews |
+| `aggregate_per_tier.{md,csv}` | Per-tier export from JSONL |
 | `.cached_tokens_probe_ok.json` | Gate marker (ephemeral per job) |
 
 Regenerate per-tier:
@@ -282,9 +283,9 @@ PYTHONPATH=. python -m src.eval.aggregate --jsonl \
 | MiniLM 1-error row | JSONL not local yet — `grep` error on Aire before citing cell 3 as fully clean |
 | 6h quality spot-check | **Done** (§2.8) — stratified 12; rewrite OK / lone_wolf bypass OK |
 | 6i charts + captions | **Done** — six figures 01–06 (`05` uniqueness, `06` TSR histograms; stacked/scatter/07 gone) |
-| 6j aggregate dissertation tables | **Next** |
+| 6j aggregate dissertation tables | **Done** — `results/phase6/dissertation_tables.md` (T1–T8 + figure crosswalk) |
 
-**6i locked:** captions match artefacts. Chart 03 only plots systems with both c=1 and burst TTFT (no phantom 0s). Chart 06 = per-request TSR histograms (bimodality). Full figure-by-figure analysis → **§10**. **Next:** 6j.
+**Phase 6 empirics locked.** Cite `RESULTS.md` for narrative; paste tables from `dissertation_tables.md`; figures from `charts/` (§10).
 
 ---
 
@@ -375,6 +376,7 @@ Use these as the dissertation figure set (six figures). Cross-check numbers agai
 | Hit rate is a bad primary metric | 02 |
 | Rewrite ≈ APC on main mix; helps under unique paraphrases | 01 vs **05** |
 | Hold costs latency, not tokens | 01, 03, 04, 06 |
+| c=1 per-tier (T4) | **Table only** — not Fig 06 |
 
 **Do not claim from these charts alone:** Optimizer is always better than APC; GPTCache is “better APC”; hold improves TSR; TTFT win for rewrite.
 
@@ -534,7 +536,7 @@ Still: report **main matrix + uniqueness probes**, not replace 6f. Frame as sens
 | System | n | TSR | mean TTFT ms | p50 lat ms | File | Cite? |
 |--------|---|-----|--------------|------------|------|-------|
 | apc | 556/556 | **0.127** | 52 | 1422 | `adv_sem_xl_apc.jsonl` | **OK** |
-| optimizer hold-off embed-off | 556/556 | **0.305** | 54 | 1424 | `adv_sem_xl_optimizer.jsonl` | **OK** |
+| optimizer hold-off embed-off | 556/556 | **0.305** | 54 | 1424 | `adv_sem_xl_optimizer.jsonl` | **OK**† |
 
 **Gap:** Optimizer − APC = **+0.178** (0.305 vs 0.127). Still ~**2.4×** APC; effect holds at larger n. APC TSR edges up slightly vs §9/§9b (more shared chat/doc crumbs across a bigger unique set); Optimizer stays ~0.30.
 
@@ -546,6 +548,8 @@ Still: report **main matrix + uniqueness probes**, not replace 6f. Frame as sens
 | optimizer | 0.305 | **[0.303, 0.308]** | 0.311 | 0.269 | 0.333 |
 
 CIs non-overlapping and **tighter** than §9 (larger n). Safe to cite with main matrix as the uniqueness-stress story.
+
+† **Provenance / overwrite note:** After the citeable cold **hold-off embed-off** run, later optional ablations reused the same `--out` path (`adv_sem_xl_optimizer.jsonl`) for hold-on and MiniLM. The **headline 0.305** (prompt_tokens=146870, cached=44848, TTFT≈54 ms) is taken from the **printed harness summary of the first cold embed-off run**, which matched proxy_metrics at the time — **not** from re-reading a file that may now hold a later overwrite. Hold-on / MiniLM printed summaries showed **identical** TSR and token totals (MiniLM never fired on rules-matched rows; hold only raised TTFT≈105 ms). Prefer distinct `--out` paths for ablations going forward.
 
 **Optional ablations on XL (not headline):** hold-on → same TSR **0.305**, mean TTFT ~**105** ms (latency cost only). `OPTIMIZER_EMBEDDING_BACKEND=minilm` → same TSR/tokens/TTFT as embed-off (fallback never fires: all rows already rules-matched). Do **not** hand-author paraphrases to inflate n; 556 = open-dump yield ceiling.
 

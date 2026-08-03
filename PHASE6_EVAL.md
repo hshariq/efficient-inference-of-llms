@@ -123,12 +123,12 @@ matplotlib; one image + 1–2 sentence caption each (`captions.txt`).
       + **hard gate** `probe_cached_tokens` → marker file; harness refuses apc/optimizer/gptcache without it
 - [x] 6c all four systems wired (vanilla/APC/gptcache/optimizer[+hold]); smoke via harness + `PHASE6_SYSTEMS.md`
 - [x] 6d workload corpus builders (docs + mine/build scripts + four-tier + Best-of-N); **mined phrasing files pending dataset download on Aire**
-- [ ] 6e concurrency=1 run, all systems
-- [ ] 6f burst run (2,000 req, four-tier), all systems; max_batch under real burst
-- [ ] 6g ablation runs (four-tier, reduced scale)
-- [ ] 6h quality spot-check
+- [x] 6e concurrency=1 run, all systems
+- [x] 6f burst run (2,000 req, four-tier), all systems; max_batch under real burst
+- [x] 6g ablation runs (four-tier, reduced scale)
+- [x] 6h quality spot-check
 - [x] 6i six required charts + captions (bar / grouped / line / box / uniqueness / TSR hist)
-- [ ] 6j aggregate tables ready for dissertation
+- [x] 6j aggregate tables ready for dissertation (`results/phase6/dissertation_tables.md`)
 
 Scripts for 6h–6j exist (`quality_spotcheck`, `charts`, `aggregate`); they need run artefacts from 6e–6g.
 
