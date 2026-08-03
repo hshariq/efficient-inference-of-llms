@@ -397,7 +397,7 @@ Use these as the dissertation figure set (six figures). Cross-check numbers agai
 | Exact repeats | **None** (deduped prompts) |
 | Builder | `python -m src.eval.build_adversarial_semantic` |
 
-**Favorable setup (state explicitly):** single short shared suffix favors rewrite→APC reuse. Does **not** claim generalization to multi-doc / full-length Leeds RAG mixes (8 docs). Cite as sensitivity under uniqueness, alongside the main matrix.
+**Favorable setup (state explicitly):** single short shared suffix favors rewrite→APC reuse. Multi-doc sensitivity (§9d) shows the absolute gap shrinks when suffixes are long and rotating — cite both.
 
 **Systems (only two):** `apc` vs `optimizer` (hold **off**, embed **off**). Cold vLLM between runs.
 
@@ -518,8 +518,9 @@ CIs non-overlapping. Citeable beside §9.
 | Uniqueness LMSYS-only (§9, n=83) | **+0.207** [CIs: APC 0.098–0.119 vs Opt 0.309–0.322] |
 | Uniqueness ShareGPT+LMSYS (§9b, n=224) | **+0.203** [APC 0.104–0.115 vs Opt 0.309–0.316] |
 | Uniqueness XL open-dump yield (§9c, n=556) | **+0.178** [APC 0.124–0.130 vs Opt 0.303–0.308] |
+| Multi-doc uniqueness (§9d, n=200) | **+0.026** [APC 0.0129–0.0141 vs Opt 0.0393–0.0398; gap shrinks vs short-doc] |
 
-Still: report **main matrix + uniqueness probes**, not replace 6f. Frame as sensitivity under higher uniqueness / no exact repeats — not production Leeds multi-doc traffic, and not a rewrite-breaking adversary.
+Still: report **main matrix + uniqueness probes**, not replace 6f. Frame short-doc uniqueness as sensitivity under higher uniqueness / no exact repeats — **not** production Leeds multi-doc traffic (§9d), and not a rewrite-breaking adversary.
 
 ### 9c. XL uniqueness scale-up (open-dump yield ceiling) — done
 
@@ -555,39 +556,48 @@ CIs non-overlapping and **tighter** than §9 (larger n). Safe to cite with main 
 
 **Do not fetch more dumps** for this probe family unless a new English summarize source appears; n=556 is the yield story, not a failed 2k target.
 
-### 9d. Multi-doc uniqueness sensitivity — ready to run
+### 9d. Multi-doc uniqueness sensitivity — done
 
 **Motivation:** §9–9c use one short shared doc (~795 chars). Does the rewrite gap survive when unique instructions are paired with the **8 Leeds-style corpus docs** (~12k chars each), round-robin?
 
-| Design | Value |
-|--------|--------|
-| Workload | `adversarial_semantic_multidoc.jsonl` |
+| Design choice | Value |
+|---------------|--------|
+| Workload | `workloads/phase6/adversarial_semantic_multidoc.jsonl` (**200** req) |
 | Builder | `--doc-mode corpus --limit 200` |
-| Docs | 8 corpus files (not `doc_adversarial_short`) |
+| Docs | 8 corpus files × 25 each (not `doc_adversarial_short`); ~12k chars/doc |
+| Sources | LMSYS **100** + ShareGPT **100**; unique prompts; 0 exact duplicates |
 | Systems | APC vs Optimizer hold-off embed-off; cold between; **c=1** |
-| Outs | **distinct** paths: `adv_sem_multidoc_apc.jsonl` / `adv_sem_multidoc_optimizer.jsonl` |
+| Host | gpu027, job `6981280`, 2026-08-03 |
+| Outs | `adv_sem_multidoc_apc.jsonl` / `adv_sem_multidoc_optimizer.jsonl` |
 
-```bash
-git pull
-PYTHONPATH=. python -m src.eval.build_adversarial_semantic --limit 200 \
-  --doc-mode corpus \
-  --probe-name adversarial_semantic_multidoc \
-  --out workloads/phase6/adversarial_semantic_multidoc.jsonl
+**Rejected first Optimizer attempt:** `mode_mismatch=true`, `models_ok=false`, Connection refused on `:9000`, `n_ok=119/200` — do **not** cite. Re-ran after proxy up + fresh probe; second run OK.
 
-# cold APC
-PYTHONPATH=. python -m src.eval.run --system apc \
-  --workload workloads/phase6/adversarial_semantic_multidoc.jsonl \
-  --concurrency 1 --out results/phase6/adv_sem_multidoc_apc.jsonl
+### Results
 
-# cold restart + proxy hold-off embed-off
-PYTHONPATH=. python -m src.eval.run --system optimizer \
-  --workload workloads/phase6/adversarial_semantic_multidoc.jsonl \
-  --concurrency 1 --out results/phase6/adv_sem_multidoc_optimizer.jsonl
+| System | n | TSR | mean TTFT ms | p50 lat ms | call1 | File | Cite? |
+|--------|---|-----|--------------|------------|-------|------|-------|
+| apc | 200/200 | **0.0135** | 179 | 1570 | 16 | `adv_sem_multidoc_apc.jsonl` | **OK** (soft crumb) |
+| optimizer hold-off embed-off | 200/200 | **0.0396** | 187 | 1580 | 16 | `adv_sem_multidoc_optimizer.jsonl` | **OK** (soft crumb) |
 
-PYTHONPATH=. python -m src.eval.aggregate --probe-stats \
-  results/phase6/adv_sem_multidoc_apc.jsonl \
-  results/phase6/adv_sem_multidoc_optimizer.jsonl
-```
+**Gap:** Optimizer − APC = **+0.026** (0.0396 vs 0.0135) — still ~**2.9×** APC, but **absolute** levels and Δ are much smaller than short-doc uniqueness (+0.18–0.21).
 
-**How to read:** Optimizer − APC still clearly positive → §9 effect not only a short-doc artefact. Gap shrinks a lot → longer/varied suffixes dilute shared-prefix savings; report honestly as sensitivity. Frame as optional follow-up, not a replacement for §9–9c.
+**Uncertainty (bootstrap 95% CI over requests, 2000 resamples):**
+
+| System | TSR | 95% CI | ratio median | p10 | p90 |
+|--------|-----|--------|--------------|-----|-----|
+| apc | 0.0135 | **[0.0129, 0.0141]** | 0.016 | 0.008 | 0.016 |
+| optimizer | 0.0396 | **[0.0393, 0.0398]** | 0.039 | 0.039 | 0.040 |
+
+CIs **do not overlap** (and are very tight). Gap is small in absolute terms but not a sampling fluke.
+
+**Reading:** With long, **rotating** docs, most prompt tokens are doc body that rewrite cannot unify across requests. APC and Optimizer both sit near the floor (crumbs / small shared chat template). Rewrite still helps a little via a canonical instruction prefix, but the short-doc §9 win was **favorable** (one shared suffix). TTFT/p50 still ≈ APC (no latency win). Higher Opt `prompt_tokens` (408k vs 406k) is rewrite overhead.
+
+**Dissertation takeaway**
+
+| Setting | Optimizer − APC |
+|---------|-----------------|
+| Short-doc uniqueness (§9–9c) | **+0.18–0.21** |
+| Multi-doc uniqueness (§9d, n=200) | **+0.026** |
+
+So: §9 effect is **not only** a short-doc artefact (gap still positive), but it **does shrink a lot** when suffixes are long and varied. Cite §9d as sensitivity / scope limit on the uniqueness story — **not** a replacement for §9–9c, and **not** evidence that rewrite fails.
 

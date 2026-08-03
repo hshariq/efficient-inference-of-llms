@@ -15,7 +15,7 @@
 | **02** Hit rate vs TSR | **T1** (hit_rate caveat) | Hit rate is a weak primary metric |
 | **03** TTFT c=1→burst | **T2**, T1 (latency) | Load scaling / hold tax; main optimizer omitted (no c=1 hold-off) |
 | **04** Latency boxplot | **T1**, T2 | Tails; GPTCache bimodal latency |
-| **05** Uniqueness by n | **T5**, T6 | Rewrite gap under no exact repeats |
+| **05** Uniqueness by n | **T5a**, T6 | Rewrite gap under no exact repeats (short doc; see T5b for multi-doc) |
 | **06** TSR histograms | **T3** | Tier-composition bimodality at **burst** scale (complement §2.5; does **not** depict T4 / c=1) |
 
 ---
@@ -85,8 +85,8 @@ TSR flat; latency changes.
 
 ## T5 — Uniqueness / no-exact-repeat probes (APC vs Optimizer)
 
-Design: unique mined `summarize_3_bullets` instructions + one short shared doc; no exact prompt repeats; hold off, embed off; c=1.  
-**Not** an attack on rewrite; favorable single-doc sensitivity setup.
+**T5a — short shared doc (favorable):** unique mined `summarize_3_bullets` + one short doc (~795 chars); no exact repeats; hold off, embed off; c=1.  
+**Not** an attack on rewrite.
 
 | Probe | n | APC TSR | Optimizer TSR | Δ | APC 95% CI | Opt 95% CI |
 |-------|--:|--------:|--------------:|--:|------------|------------|
@@ -94,9 +94,17 @@ Design: unique mined `summarize_3_bullets` instructions + one short shared doc; 
 | ShareGPT+LMSYS (§9b) | 224 | **0.110** | **0.313** | **+0.203** | [0.104, 0.115] | [0.309, 0.316] |
 | XL open-dump yield (§9c) | 556 | **0.127** | **0.305**† | **+0.178** | [0.124, 0.130] | [0.303, 0.308] |
 
-All CIs **non-overlapping**. MOSS scanned; 0 English summarize rows in probe (yield, not silent drop).  
+All short-doc CIs **non-overlapping**. MOSS scanned; 0 English summarize rows in probe (yield, not silent drop).  
 † XL Optimizer TSR from printed cold **hold-off embed-off** summary (see `RESULTS.md` §9c overwrite note); later ablations reused the same out path.  
 **Figure:** 05. **Sources:** `RESULTS.md` §9–9c; `aggregate --probe-stats`.
+
+**T5b — multi-doc sensitivity (§9d):** same unique-instruction design; **8** Leeds-style corpus docs (~12k chars), round-robin; n=200 (LMSYS 100 + ShareGPT 100).
+
+| Probe | n | APC TSR | Optimizer TSR | Δ | APC 95% CI | Opt 95% CI |
+|-------|--:|--------:|--------------:|--:|------------|------------|
+| Multi-doc corpus (§9d) | 200 | **0.0135** | **0.0396** | **+0.026** | [0.0129, 0.0141] | [0.0393, 0.0398] |
+
+CIs **non-overlapping**. Gap still positive (~2.9× APC) but **much smaller** absolutely than T5a — long/varied suffixes dilute shared-prefix savings. Soft `call1=16` both; first Opt attempt rejected (`mode_mismatch`). **Source:** `RESULTS.md` §9d.
 
 ---
 
@@ -106,9 +114,10 @@ All CIs **non-overlapping**. MOSS scanned; 0 English summarize rows in probe (yi
 |---------|----------------:|----------------|
 | Main mix semantic @ c=1 (§2.4) | **+0.014** | Weak / noise; recycles inflate APC |
 | Main mix semantic @ burst (§2.6) | **+0.011** | Same story at scale |
-| Uniqueness n=83 / 224 / 556 (§9–9c) | **+0.18–0.21** | Clear under no exact repeats |
+| Uniqueness n=83 / 224 / 556 (§9–9c) | **+0.18–0.21** | Clear under no exact repeats (short doc) |
+| Multi-doc uniqueness (§9d, n=200) | **+0.026** | Still positive; absolute win shrinks |
 
-**Figures:** 01 vs 05. Report **both** main matrix and uniqueness — do not replace T1 with T5.
+**Figures:** 01 vs 05. Report **main matrix + uniqueness + §9d scope** — do not replace T1 with T5a; do not treat T5a as production multi-doc Leeds RAG.
 
 ---
 
@@ -143,17 +152,17 @@ Artefact: `quality_spotcheck.md`. **Cannot claim** proven answer-quality superio
 
 1. Vanilla TSR=0 vs APC/Optimizer ~0.78 → prefix caching yields large token savings (T1, Fig 01).
 2. On the main four-tier mix, Optimizer rewrite-only ≈ APC on aggregate TSR (T1, T3).
-3. Semantic Opt−APC only +0.01 on that mix; uniqueness probes show +0.18–0.21 with non-overlapping CIs (T5, T6, Fig 05).
+3. Semantic Opt−APC only +0.01 on that mix; short-doc uniqueness probes show +0.18–0.21 with non-overlapping CIs (T5a, T6, Fig 05); multi-doc sensitivity shrinks Δ to +0.026 (T5b).
 4. Hold / MiniLM raise TTFT (or MiniLM latency), not TSR (T2).
 5. GPTCache is answer memoization — different mechanism (T1).
-6. Strongest broad result: **TSR vs TTFT decoupling** (vanilla vs APC); rewrite helps when paraphrases are unique and the shared suffix is the doc.
+6. Strongest broad result: **TSR vs TTFT decoupling** (vanilla vs APC); rewrite helps most when paraphrases are unique **and** the shared suffix is short/stable.
 
 **Cannot say**
 
 1. Optimizer massively beats APC on the main burst.
 2. TTFT win for Optimizer vs APC.
 3. `hit_rate=1.0` = full-prompt hits.
-4. Uniqueness probe replaces the main matrix, or generalizes to multi-doc production Leeds RAG without further evidence.
+4. Short-doc uniqueness replaces the main matrix, or that the +0.18–0.21 gap holds at production multi-doc Leeds RAG scale (T5b: Δ → +0.026).
 5. Fig 06 “proves” the §2.5 recycle mechanism (tier composition is the coarse driver; §2.5 is semantic-only).
 
 ---
